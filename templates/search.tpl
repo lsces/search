@@ -61,7 +61,7 @@
 							{tr}Relevance{/tr}: {$results[search].relevancy}
 						{/if}
 					{/if}
-					{if $results[search].type > ''}
+					{if !empty($results[search].type)}
 						&nbsp; ( {$results[search].type} )
 					{/if}
 				</small>
@@ -70,7 +70,7 @@
 			<div class="search box">
 				<h3>{$smarty.capture.title}</h3>
 				<div class="boxcontent">
-					{$results[search].parsed|strip_tags|truncate:250}
+					{$results[search].parsed|default:''|strip_tags|truncate:250}
 					<br />
 					<span class="date">{tr}Last modification{/tr}: {$results[search].last_modified|bit_long_datetime}</span>
 				</div>

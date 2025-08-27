@@ -11,7 +11,7 @@
 					{formlabel label=$output.label for=$item}
 					{forminput}
 						{html_checkboxes name="$item" values="y" checked=$gBitSystem->getConfig($item) labels=false id=$item}
-						{formhelp note=$output.note page=$output.page}
+						{formhelp note=$output.note page=$output.page|default:''}
 					{/forminput}
 				</div>
 			{/foreach}
@@ -21,7 +21,7 @@
 					{formlabel label=$output.label for=$item}
 					{forminput}
 						<input size="5" type="text" name="{$item}" id="{$item}" value="{$output.value|escape}" />
-						{formhelp note=$output.note page=$output.page}
+						{formhelp note=$output.note page=$output.page|default:''}
 					{/forminput}
 				</div>
 			{/foreach}

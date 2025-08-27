@@ -17,9 +17,9 @@
 /**
  * required setup
  */
-require_once( '../kernel/setup_inc.php' );
+require_once '../kernel/includes/setup_inc.php';
 
-include_once( DIRECTORY_PKG_PATH.'dir_lib.php' );
+include_once DIRECTORY_PKG_PATH.'dir_lib.php';
 
 $gBitSystem->verifyFeature( 'feature_directory' );
 $gBitSystem->verifyPermission( 'bit_p_view_directory' );
@@ -28,40 +28,28 @@ $gBitSmarty->assign('words', $_REQUEST['words']);
 $gBitSmarty->assign('where', $_REQUEST['where']);
 $gBitSmarty->assign('how', $_REQUEST['how']);
 
-if ( empty( $_REQUEST["sort_mode"] ) ) {
-	$sort_mode = 'hits_desc';
-} else {
-	$sort_mode = $_REQUEST["sort_mode"];
-}
-$gBitSmarty->assignByRef('sort_mode', $sort_mode);
+$sort_mode = $_REQUEST["sort_mode"] ?? 'hits_desc';
+$gBitSmarty->assign('sort_mode', $sort_mode);
 
-if (!isset($_REQUEST["offset"])) {
-	$offset = 0;
-} else {
-	$offset = $_REQUEST["offset"];
-}
+$offset = $_REQUEST["offset"] ?? 0;
+
 if (isset($_REQUEST['page'])) {
 	$page = &$_REQUEST['page'];
 	$offset = ($page - 1) * $max_records;
 }
-$gBitSmarty->assignByRef('offset', $offset);
+$gBitSmarty->assign('offset', $offset);
 
-if (isset($_REQUEST["find"])) {
-	$find = $_REQUEST["find"];
-} else {
-	$find = '';
-}
+$find = $_REQUEST["find"] ?? '';
+
 $gBitSmarty->assign('find', $find);
 
-if ($_REQUEST['where'] == 'all') {
-	$items = $dirlib->dir_search($_REQUEST['words'], $_REQUEST['how'], $offset, $max_records, $sort_mode);
-} else {
-	$items = $dirlib->dir_search_cat($_REQUEST['parent'], $_REQUEST['words'], $_REQUEST['how'], $offset, $max_records, $sort_mode);
-}
+$items = $_REQUEST['where'] == 'all'
+	? $dirlib->dir_search($_REQUEST['words'], $_REQUEST['how'], $offset, $max_records, $sort_mode)
+	: $dirlib->dir_search_cat($_REQUEST['parent'], $_REQUEST['words'], $_REQUEST['how'], $offset, $max_records, $sort_mode);
 
 $cant_pages = ceil($items["cant"] / $max_records);
-$gBitSmarty->assignByRef('cant_pages', $cant_pages);
-$gBitSmarty->assign('actual_page', 1 + ($offset / $max_records));
+$gBitSmarty->assign('cant_pages', $cant_pages);
+$gBitSmarty->assign('actual_page', 1 + $offset / $max_records);
 
 if ($items["cant"] > ($offset + $max_records)) {
 	$gBitSmarty->assign('next_offset', $offset + $max_records);
@@ -75,10 +63,8 @@ if ($offset > 0) {
 	$gBitSmarty->assign('prev_offset', -1);
 }
 
-$gBitSmarty->assignByRef('items', $items["data"]);
+$gBitSmarty->assign('items', $items["data"]);
 
 $section = 'directory';
 // Display the template
-$gBitSystem->display( 'bitpackage:search/directory_search.tpl', NULL, array( 'display_mode' => 'display' ));
-
-?>
+$gBitSystem->display( 'bitpackage:search/directory_search.tpl', null, array( 'display_mode' => 'display' ));

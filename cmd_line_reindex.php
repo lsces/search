@@ -42,11 +42,11 @@ $_SERVER['HTTP_HOST']       = 'batch';
 $_SERVER['HTTP_USER_AGENT'] = 'batch';
 $_SERVER['SCRIPT_URL']      = 'batch';
 $_SERVER['SERVER_SOFTWARE'] = 'batch';
-$HTTP_SERVER_VARS['HTTP_USER_AGENT'] = 'batch';
+$_SERVER['HTTP_USER_AGENT'] = 'batch';
 
-require_once( '../kernel/setup_inc.php' );
-require_once( LIBERTY_PKG_PATH.'LibertyBase.php');
-require_once( SEARCH_PKG_PATH.'refresh_functions.php');
+require_once '../kernel/includes/setup_inc.php';
+use Bitweaver\Liberty\LibertyBase;
+require_once SEARCH_PKG_INCLUDES_PATH.'refresh_functions.php';
 
 $whatToIndex   = "pages";
 $unindexedOnly = false;
@@ -86,6 +86,5 @@ if (isset($argc)) {  // we are running from the command line.
 
 function microtime_float() {
    list($usec, $sec) = explode(" ", microtime());
-   return ((float)$usec + (float)$sec);
+   return (float) $usec + (float) $sec;
 }
-?>

@@ -14,16 +14,17 @@
  * @subpackage modules
  */
 
+use Bitweaver\Search\SearchLib;
+use Bitweaver\KernelTools;
+
 /**
  * Initialization
  */
-require_once(SEARCH_PKG_PATH."search_lib.php");
-
+	global $gBitSystem, $gLibertySystem;
+	
 	$tplName = $gBitSystem->getActivePackage().'_mini_search.tpl';
 	$searchTemplatePath = BIT_ROOT_URL.constant( strtoupper( $gBitSystem->getActivePackage() ).'_PKG_PATH' ).'templates/'.$tplName;
 	
-	global $gLibertySystem;
-
 	if( file_exists( $searchTemplatePath ) ) {
 		$searchTemplateRsrc = 'bitpackage:'.$gBitSystem->getActivePackage().'/'.$tplName;
 		$searchTitle = ucfirst( $gBitSystem->getActivePackage() );
@@ -33,7 +34,7 @@ require_once(SEARCH_PKG_PATH."search_lib.php");
 	}
 
 	if( empty( $contentTypes ) ) {
-		$contentTypes = array( '' => tra( 'All Content' ) );
+		$contentTypes = [ '' => KernelTools::tra( 'All Content' ) ];
 		foreach( $gLibertySystem->mContentTypes as $cType ) {
 			if (SearchLib::has_permission($cType["content_type_guid"])
 				and ( ! $gBitSystem->getConfig('search_restrict_types') ||
@@ -46,4 +47,3 @@ require_once(SEARCH_PKG_PATH."search_lib.php");
 
 	$gBitSmarty->assign( 'searchTitle', $searchTitle );
 	$gBitSmarty->assign( 'miniSearchRsrc', $searchTemplateRsrc );
-?>

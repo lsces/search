@@ -17,34 +17,39 @@
  * @package search
  */
 
+namespace Bitweaver\Search;
+use Bitweaver\BitBase;
+use Bitweaver\Liberty\LibertyBase;
+
 class SearchLib extends BitBase {
-	function __construct() {
+
+	public $wordlist_cache;
+
+	public function __construct() {
 		parent::__construct();
-		$this->wordlist_cache = array(); // for caching queries to the LRU-cache-list.
+		$this->wordlist_cache = []; // for caching queries to the LRU-cache-list.
 	}
 
-	function register_search($words) {
+	public function register_search($words) {
 		$words = strtolower($words);
 		$words = addslashes($words);
 		$words = preg_split("/\s/", $words);
 		foreach ($words as $word) {
 			$word = trim($word);
 			$cant = $this->mDb->getOne("SELECT COUNT(*) FROM `" . BIT_DB_PREFIX .
-				"search_stats` WHERE `term`=?", array($word));
-			if ($cant) {
-				$query = "UPDATE `" . BIT_DB_PREFIX . "search_stats` SET `hits`= `hits` + 1 WHERE `term`=?";
-			} else {
-				$query = "INSERT INTO `" . BIT_DB_PREFIX . "search_stats` (`term`,`hits`) VALUES (?,1)";
-			}
-			$result = $this->mDb->query($query,array($word));
+				"search_stats` WHERE `term`=?", [ $word ]);
+				$query = $cant
+				? "UPDATE `" . BIT_DB_PREFIX . "search_stats` SET `hits`= `hits` + 1 WHERE `term`=?"
+				: "INSERT INTO `" . BIT_DB_PREFIX . "search_stats` (`term`,`hits`) VALUES (?,1)";
+			$result = $this->mDb->query($query, [ $word ]);
 		}
 	}
 
-	function find( &$pParamHash ) { // $where, $words, $offset, $max_records, $plUsePart = false) {
+	public function find( &$pParamHash ) { // $where, $words, $offset, $max_records, $plUsePart = false) {
 		$pParamHash['words'] = preg_split("/[\W]+/", strtolower($pParamHash['words']), -1, PREG_SPLIT_NO_EMPTY);
 		if ( isset($pParamHash['$plUsePart']) && $pParamHash['$plUsePart'] ) {
 			$wordList = $this->get_wordlist_from_syllables( $pParamHash['words'] );
-			if ( array( $wordList ) ) {
+			if ([ $wordList ] ) {
 				$pParamHash['words'] = array_merge( $pParamHash['words'], $wordList );
 			}
 		}
@@ -57,12 +62,12 @@ class SearchLib extends BitBase {
 	 * If the syllable is to old or doesn't exist, it refreshes the syllable/word list stored in search_words
 	 * Then, it get a list of words from the search_words table and returns an array of them
 	*/
-	function get_wordlist_from_syllables($syllables) {
+	public function get_wordlist_from_syllables($syllables) {
 		global $gBitSystem;
 		$search_syll_age = $gBitSystem->getConfig( 'search_syll_age', SEARCH_PKG_NAME );
-		$ret = array();
+		$ret = [];
 		foreach($syllables as $syllable) {
-			$bindvars = array($syllable);
+			$bindvars = [ $syllable ];
 			$age      = time() - $this->mDb->getOne(
 						"select `last_updated` from `" . BIT_DB_PREFIX . "search_syllable` where `syllable`=?",
 						$bindvars);
@@ -76,16 +81,16 @@ class SearchLib extends BitBase {
 			// update lru last used value (Used to purge oldest last used records)
 			$now = time();
 			$this->mDb->query("update `" . BIT_DB_PREFIX . "search_syllable` set `last_used`=? where `syllable`=?",
-				array((int) $now, $syllable));
+				[ (int) $now, $syllable ]);
 		}
 		return $ret;
 	}
 
-	function get_lru_wordlist($syllable) {
-		$ret = array();
+	public function get_lru_wordlist($syllable) {
+		$ret = [];
 		if(!isset($this->wordlist_cache[$syllable])) {
 	       		$query  = "select `searchword` from `" . BIT_DB_PREFIX . "search_words` where `syllable`=?";
-        		$result = $this->mDb->query($query, array($syllable));
+        		$result = $this->mDb->query($query, [ $syllable ]);
         		if ($result->RecordCount() > 0) {
 	        		while ($res = $result->fetchRow()) {
     	    			$this->wordlist_cache[$syllable][]=$res["searchword"];
@@ -96,22 +101,22 @@ class SearchLib extends BitBase {
 		return $ret;
 	}
 
-	function refresh_lru_wordlist($syllable) {
+	public function refresh_lru_wordlist($syllable) {
 		global $gBitSystem;
 		$search_max_syllwords = $gBitSystem->getConfig( 'search_max_syllwords', SEARCH_PKG_NAME );;
 		$search_lru_length = $gBitSystem->getConfig( 'search_lru_length', SEARCH_PKG_NAME );;
 		$search_lru_purge_rate = $gBitSystem->getConfig( 'search_lru_purge_rate', SEARCH_PKG_NAME );
-		$ret = array();
+		$ret = [];
 
 		// delete from wordlist and lru list
-		$this->mDb->query("delete from `".BIT_DB_PREFIX."search_words` where `syllable`=?",array($syllable),-1,-1);
-		$this->mDb->query("delete from `".BIT_DB_PREFIX."search_syllable` where `syllable`=?",array($syllable),-1,-1);
+		$this->mDb->query("delete from `".BIT_DB_PREFIX."search_words` where `syllable`=?", [ $syllable ],-1,-1);
+		$this->mDb->query("delete from `".BIT_DB_PREFIX."search_syllable` where `syllable`=?", [ $syllable ],-1,-1);
 		if (!isset($search_max_syllwords)) {
 			$search_max_syllwords = 100;
 		}
 		$query  = "SELECT `searchword`, SUM(`i_count`) AS `cnt` FROM `" . BIT_DB_PREFIX .
 					"search_index` WHERE `searchword` LIKE ? GROUP BY `searchword` ORDER BY 2 desc";
-		$result = $this->mDb->query($query, array('%' . $syllable . '%'), $search_max_syllwords); // search_max_syllwords: how many different search_words that contain the syllable are taken into account?. Sortet by number of occurences.
+		$result = $this->mDb->query($query, [ "%$syllable%" ], $search_max_syllwords); // search_max_syllwords: how many different search_words that contain the syllable are taken into account?. Sortet by number of occurences.
 		while ($res = $result->fetchRow()) {
 			$ret[] = $res["searchword"];
 		}
@@ -119,13 +124,13 @@ class SearchLib extends BitBase {
 		foreach($ret as $searchword) {
 			$this->mDb->query("INSERT INTO `" . BIT_DB_PREFIX .
 				"search_words` (`syllable`,`searchword`) VALUES (?,?)",
-				array($syllable, $searchword), -1, -1);
+				[ $syllable, $searchword ], -1, -1);
 			}
 		// set lru list parameters
 		$now = time();
 		$this->mDb->query("INSERT INTO `" . BIT_DB_PREFIX .
 			"search_syllable`(`syllable`,`last_used`,`last_updated`) values (?,?,?)",
-			array($syllable,(int) $now,(int) $now));
+			[ $syllable, (int) $now, (int) $now ]);
 
 		// at random rate: check length of lru list and purge these that
 		// have not been used for long time. This is what a lru list
@@ -134,21 +139,21 @@ class SearchLib extends BitBase {
 		srand (ceil($sec + 100 * $usec));
 		if(rand(1, $search_lru_purge_rate) == 1) {
 			$lrulength = $this->mDb->getOne("SELECT COUNT(*) FROM `" . BIT_DB_PREFIX .
-				"search_syllable`", array());
+				"search_syllable`", []);
 			if ($lrulength > $search_lru_length) { // only purge if lru list is too long.
 				//purge oldest
-				$oldwords = array();
+				$oldwords = [];
 				$diff   = $lrulength - $search_lru_length;
 				$query  = "select `syllable` from `".BIT_DB_PREFIX."search_syllable` ORDER BY `last_used` asc";
-				$result = $this->mDb->query($query, array(), $diff);
+				$result = $this->mDb->query($query, [], $diff);
 				while ($res = $result->fetchRow()) {
 					$oldwords[]=$res["syllable"];
 				}
 				foreach($oldwords as $oldword) {
 					$this->mDb->query("delete from `" . BIT_DB_PREFIX .
-						"search_words`    where `syllable`=?", array($oldword), -1, -1);
+						"search_words`    where `syllable`=?", [ $oldword ], -1, -1);
 					$this->mDb->query("delete from `" . BIT_DB_PREFIX .
-						"search_syllable` where `syllable`=?", array($oldword), -1, -1);
+						"search_syllable` where `syllable`=?", [ $oldword ], -1, -1);
 				}
 
 			}
@@ -156,12 +161,12 @@ class SearchLib extends BitBase {
 		return $ret;
 	}
 
-	function find_with_or($allowed, $selectSql, $joinSql, $whereSql, $bindVars,&$pParamHash) {
+	public function find_with_or($allowed, $selectSql, $joinSql, $whereSql, $bindVars,&$pParamHash) {
 		// Putting in the below hack because mssql cannot select distinct on a text blob column.
 		$qPlaceHolders1 = implode(',', array_fill(0, count($pParamHash['words']), '?'));
 		$bindVars = array_merge( $pParamHash['words'], $allowed );
-		LibertyContent::getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
-		$ret = array();
+//        $this->getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
+		$ret = [];
 		$query = "SELECT
 						lc.`content_id`,
 						lc.`title`,
@@ -212,13 +217,13 @@ class SearchLib extends BitBase {
 			return $ret;
 	}
 
-	function find_with_and($allowed, $selectSql, $joinSql, $whereSql, $bindVars, &$pParamHash) {
+	public function find_with_and($allowed, $selectSql, $joinSql, $whereSql, $bindVars, &$pParamHash) {
 		// Make a slot for the search word.
-		$bindVars[0] = NULL;
+		$bindVars[0] = null;
 		$bindVars = array_merge( $bindVars, $allowed );
-		LibertyContent::getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
+//		LibertyContent::getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
 
-		$ret = array();
+		$ret = [];
 		$first = true;
 		foreach($pParamHash['words'] as $word) {
 			$query = "SELECT lc.`content_id` AS hash_key,
@@ -266,10 +271,10 @@ class SearchLib extends BitBase {
 			return $ret;
 	}
 
-	function find_exact_generic( &$pParamHash ) {
+	public function find_exact_generic( &$pParamHash ) {
 		global $gPage, $gBitSystem, $gLibertySystem, $gBitDbType;
-		$allowed = array();
-		$ret    = array();
+		$allowed = [];
+		$ret    = [];
 		foreach( $gLibertySystem->mContentTypes as $contentType ) {
 			if (( $pParamHash['content_type_guid'] == $contentType["content_type_guid"] or $pParamHash['content_type_guid'] == "" ) // pages ?
 			and $this->has_permission($contentType["content_type_guid"])
@@ -283,21 +288,19 @@ class SearchLib extends BitBase {
 			$selectSql = '';
 			$joinSql = '';
 			$whereSql = " AND  lc.`content_type_guid` IN (" . implode(',', array_fill(0, count($allowed), '?')) . ") ";
-			$bindVars = array();
+			$bindVars = [];
 
-			if (isset($pParamHash['useAnd']) && $pParamHash['useAnd']) {
-				return $this->find_with_and($allowed, $selectSql, $joinSql, $whereSql, $bindVars, $pParamHash);
-			}
-			else {
-				return $this->find_with_or($allowed, $selectSql, $joinSql, $whereSql, $bindVars, $pParamHash);
-			}
+			$ret = isset($pParamHash['useAnd']) && $pParamHash['useAnd']
+				? $this->find_with_and($allowed, $selectSql, $joinSql, $whereSql, $bindVars, $pParamHash)
+				: $this->find_with_or($allowed, $selectSql, $joinSql, $whereSql, $bindVars, $pParamHash);
 		} else {
 			$pParamHash['cant'] = 0;
-			return array();
+			$ret = [];
 		}
+        return $ret;
 	}
 
-	function mergeResults(&$ret, $result) {
+	public function mergeResults(&$ret, $result) {
 		// Remove those that don't overlap or update relevance
 		foreach ($ret as $content_id => $data) {
 			if (!isset($result[$content_id])) {
@@ -309,20 +312,20 @@ class SearchLib extends BitBase {
 		}
 	}
 
-	public static function has_permission($pContentType = NULL) {
+	public static function has_permission($pContentType = null) {
 		global $gBitUser, $gLibertySystem;
 
 		if ( ! empty( $pContentType ) ) {
-			$object = LibertyBase::getLibertyObject(1, $pContentType, FALSE);
+			$object = LibertyBase::getLibertyObject(1, $pContentType, false);
 			if ( ! empty( $object ) ) {
 				// Note that we can't do verify access here because
 				// we are using a generic object but we can at least get a
 				// basic permission check here.
-				return $object->hasViewPermission(FALSE);
+				return $object->hasViewPermission(false);
 			}
 		}
 
-		return FALSE;
+		return false;
 	}
 
 } # class SearchLib
@@ -336,5 +339,3 @@ if (!defined('search_relevance_sort')) {
 		return $rel;
 	}
 }
-
-?>

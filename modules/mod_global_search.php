@@ -17,11 +17,12 @@
 /**
  * Initialization
  */
-global $gLibertySystem;
-require_once(SEARCH_PKG_PATH."search_lib.php");
 
+global $gLibertySystem;
+use Bitweaver\Search\SearchLib;
+use Bitweaver\KernelTools;
 if( empty( $contentTypes ) ) {
-	$contentTypes = array( '' => tra( 'All Content' ) );
+	$contentTypes = [ '' => KernelTools::tra( 'All Content' ) ];
 	foreach( $gLibertySystem->mContentTypes as $cType ) {
 		if (SearchLib::has_permission($cType["content_type_guid"])
 			and ( ! $gBitSystem->getConfig('search_restrict_types') ||
@@ -30,5 +31,4 @@ if( empty( $contentTypes ) ) {
 		}
 	}
 }
-$_template->tpl_vars['contentTypes'] = new Smarty_variable( $contentTypes );
-?>
+$gBitSmarty->assign( 'contentTypes', $contentTypes );

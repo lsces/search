@@ -17,9 +17,9 @@
 /**
  * requires setup
  */
-require_once( '../kernel/setup_inc.php' );
+require_once '../kernel/includes/setup_inc.php';
 
-include_once( SEARCH_PKG_PATH.'searchstats_lib.php');
+use Bitweaver\Search\SearchStatsLib;
 
 $gBitSystem->verifyFeature( 'search_stats' );
 $gBitSystem->verifyPermission( 'p_admin' );
@@ -28,37 +28,25 @@ if (isset($_REQUEST["clear"])) {
 	$searchstatslib->clear_search_stats();
 }
 
-if ( empty( $_REQUEST["sort_mode"] ) ) {
-	$sort_mode = 'hits_desc';
-} else {
-	$sort_mode = $_REQUEST["sort_mode"];
-}
+$sort_mode = $_REQUEST["sort_mode"] ?? 'hits_desc';
+$offset = $_REQUEST["offset"] ?? 0;
 
-if (!isset($_REQUEST["offset"])) {
-	$offset = 0;
-} else {
-	$offset = $_REQUEST["offset"];
-}
 if (isset($_REQUEST['page'])) {
 	$page = &$_REQUEST['page'];
 	$offset = ($page - 1) * $max_records;
 }
-$gBitSmarty->assignByRef('offset', $offset);
+$gBitSmarty->assign('offset', $offset);
 
-if (isset($_REQUEST["find"])) {
-	$find = $_REQUEST["find"];
-} else {
-	$find = '';
-}
+$find = $_REQUEST["find"] ?? '';
 
 $gBitSmarty->assign('find', $find);
 
-$gBitSmarty->assignByRef('sort_mode', $sort_mode);
+$gBitSmarty->assign('sort_mode', $sort_mode);
 $channels = $searchstatslib->list_search_stats($offset, $max_records, $sort_mode, $find);
 
 $cant_pages = ceil($channels["cant"] / $max_records);
-$gBitSmarty->assignByRef('cant_pages', $cant_pages);
-$gBitSmarty->assign('actual_page', 1 + ($offset / $max_records));
+$gBitSmarty->assign('cant_pages', $cant_pages);
+$gBitSmarty->assign('actual_page', 1 + $offset / $max_records);
 
 if ($channels["cant"] > ($offset + $max_records)) {
 	$gBitSmarty->assign('next_offset', $offset + $max_records);
@@ -73,11 +61,9 @@ if ($offset > 0) {
 	$gBitSmarty->assign('prev_offset', -1);
 }
 
-$gBitSmarty->assignByRef('channels', $channels["data"]);
+$gBitSmarty->assign('channels', $channels["data"]);
 
 
 
 // Display the template
-$gBitSystem->display( 'bitpackage:stats/search_stats.tpl', NULL, array( 'display_mode' => 'display' ));
-
-?>
+$gBitSystem->display( 'bitpackage:stats/search_stats.tpl', null, array( 'display_mode' => 'display' ));

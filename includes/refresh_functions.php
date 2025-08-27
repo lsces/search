@@ -14,8 +14,6 @@
  * @subpackage functions
  */
 
-// to do - move blogs into tiki content.
-
 /**
  * random_refresh_index_comments
  * I believe these functiions are from tiki. They are called every x refreshes of a browser.
@@ -45,11 +43,11 @@ function random_refresh_index($pContentType = "") {
 		default :
 			$table = "";
 	}
-	if (!empty($table)) {
-		$cant = $gBitSystem->mDb->getOne("SELECT COUNT(*) FROM `" . BIT_DB_PREFIX . $table . "`", array());
+	if (!empty($table) && !empty($gBitSystem->mDb) ) {
+		$cant = $gBitSystem->mDb->getOne("SELECT COUNT(*) FROM `" . BIT_DB_PREFIX . $table . "`", []);
 		if($cant > 0) {
 			$query     = "SELECT `content_id` FROM `" . BIT_DB_PREFIX . $table . "`";
-			$contentId = $gBitSystem->mDb->getOne($query, array(), 1, rand(0, $cant - 1));
+			$contentId = $gBitSystem->mDb->getOne($query, [], 1, rand(0, $cant - 1));
 			refresh_index($contentId);
 		}
 	}
@@ -85,7 +83,7 @@ function refresh_index( $pContentObject = null ) {
 function refresh_index_oldest(){
 	global $gBitSystem;
 	$contentId = $gBitSystem->mDb->getOne("SELECT `content_id` FROM `" . BIT_DB_PREFIX .
-				"search_index` ORDER BY `last_update`", array());
+				"search_index` ORDER BY `last_update`", []);
 	if ( isset($contentId) ) {
 		refresh_index($contentId);
 	}
@@ -96,21 +94,21 @@ function prepare_words($data) {
 	// split into words
 	$sstrings = preg_split("/[\W]+/", $data, -1, PREG_SPLIT_NO_EMPTY);
 	// count words
-	$words = array();
+	$words = [];
 	foreach ($sstrings as $key=>$value) {
 		if(!isset($words[strtolower($value)])) {
 			$words[strtolower($value)] = 0;
 		}
 		$words[strtolower($value)]++;
 	}
-	return($words);
+	return $words;
 }
 
 function delete_index ($pContentId) {
 	global $gBitSystem;
 	if( !empty( $pContentId ) ) {
 		$sql = "DELETE FROM `".BIT_DB_PREFIX."search_index` WHERE `content_id`=?";
-		$gBitSystem->mDb->query($sql, array($pContentId));
+		$gBitSystem->mDb->query($sql, [ $pContentId ]);
 	}
 }
 
@@ -124,7 +122,7 @@ function insert_index( &$words, $location, $pContentId ) {
 				// todo: stopwords + common words.
 				$query = "INSERT INTO `" . BIT_DB_PREFIX . "search_index`
 					(`content_id`,`searchword`,`i_count`,`last_update`) values (?,?,?,?)";
-				$gBitSystem->mDb->query($query, array($pContentId, $key, (int) $value, $now));
+				$gBitSystem->mDb->query($query, [ $pContentId, $key, (int) $value, $now ]);
 			} // What happened to location?
 		}
 	}
@@ -132,25 +130,25 @@ function insert_index( &$words, $location, $pContentId ) {
 
 function delete_search_words_and_syllables() {
 	global $gBitSystem;
-	$gBitSystem->mDb->query( "DELETE FROM `" . BIT_DB_PREFIX . "search_words`", array() );
-	$gBitSystem->mDb->query( "DELETE FROM `" . BIT_DB_PREFIX . "search_syllable`", array() );
+	$gBitSystem->mDb->query( "DELETE FROM `" . BIT_DB_PREFIX . "search_words`", [] );
+	$gBitSystem->mDb->query( "DELETE FROM `" . BIT_DB_PREFIX . "search_syllable`", [] );
 }
 
 function delete_index_content_type($pContentType) {
 	global $gBitSystem;
 	$sql   = "DELETE FROM `" . BIT_DB_PREFIX . "search_index`";
-	$array = array();
+	$array = [];
 	if ( $pContentType <> "pages" ) {
 		$sql  .= " WHERE `content_id` IN (SELECT `content_id` FROM `" . BIT_DB_PREFIX .
 				 "liberty_content` where `content_type_guid` = ?)";
-		$array = array($pContentType);
+		$array = [ $pContentType ];
 	}
 	$gBitSystem->mDb->query( $sql, $array );
 }
 
 function rebuild_index($pContentType, $pUnindexedOnly = false) {
 	global $gBitSystem, $gLibertySystem;
-	$arguments   = array();
+	$arguments   = [];
 	$whereClause = "";
 	ini_set("max_execution_time", "3000");
 	if (!$pUnindexedOnly) {
@@ -179,8 +177,8 @@ function rebuild_index($pContentType, $pUnindexedOnly = false) {
 		while ($res = $result->fetchRow()) {
 			if( isset( $gLibertySystem->mContentTypes[$res["content_type_guid"]] ) ) {
 				$type = $gLibertySystem->mContentTypes[$res["content_type_guid"]];
-				require_once( constant( strtoupper( $type['handler_package'] ).'_PKG_PATH' ).$type['handler_file'] );
-				$obj = new $type['handler_class']( NULL, $res["content_id"] );
+				require_once constant( strtoupper( $type['handler_package'] ) . '_PKG_PATH' ) . $type['handler_file'];
+				$obj = new $type['handler_class']( null, $res["content_id"] );
 				refresh_index($obj);
 				unset($obj);
 			}
@@ -188,4 +186,3 @@ function rebuild_index($pContentType, $pUnindexedOnly = false) {
 	}
 	return $count;
 }
-?>
