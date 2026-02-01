@@ -21,6 +21,7 @@
  * With the exception of blogs (blog headers not blog posts) they pick the content_id
  * and pass it to refresh_index() to do the work.
  */
+namespace Bitweaver\Liberty;
 
 function random_refresh_index($pContentType = "") {
 	global $gBitSystem;
@@ -177,8 +178,8 @@ function rebuild_index($pContentType, $pUnindexedOnly = false) {
 		while ($res = $result->fetchRow()) {
 			if( isset( $gLibertySystem->mContentTypes[$res["content_type_guid"]] ) ) {
 				$type = $gLibertySystem->mContentTypes[$res["content_type_guid"]];
-				require_once constant( strtoupper( $type['handler_package'] ) . '_PKG_PATH' ) . $type['handler_file'];
-				$obj = new $type['handler_class']( null, $res["content_id"] );
+					$full_class = '\Bitweaver\\'.ucfirst($type['handler_package']).'\\'.$type['handler_class'];
+					$obj = new $full_class( null, $res["content_id"] );
 				refresh_index($obj);
 				unset($obj);
 			}

@@ -46,7 +46,7 @@ $_SERVER['HTTP_USER_AGENT'] = 'batch';
 
 require_once '../kernel/includes/setup_inc.php';
 use Bitweaver\Liberty\LibertyBase;
-require_once SEARCH_PKG_INCLUDES_PATH.'refresh_functions.php';
+require_once 'includes/refresh_functions.php';
 
 $whatToIndex   = "pages";
 $unindexedOnly = false;
@@ -70,7 +70,7 @@ if (isset($argc)) {  // we are running from the command line.
 		$time_start = microtime_float();
 		if (!$silent) echo "\nBeginning Reindex of $whatToIndex ...\n";
 		if (!$silent && $unindexedOnly) echo "Warning: unindexed only flag set. Will break MySQL 3.x because of sub-selects\n";
-		$count    = rebuild_index($whatToIndex, $unindexedOnly);
+		$count    = \Bitweaver\Liberty\rebuild_index($whatToIndex, $unindexedOnly);
 		$time_end = microtime_float();
 		$time     = number_format($time_end - $time_start, 4);
 		if (!$silent) echo "Index rebuild complete.\n";

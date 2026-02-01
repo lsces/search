@@ -13,6 +13,7 @@
  * @package search
  * @subpackage functions
  */
+namespace Bitweaver\Liberty;
 
 /**
  * refresh_search_index
@@ -58,6 +59,6 @@ function refresh_search_index() {
 			$gBitSystem->mDb->mDb->SelectDB( $gBitDbName );
 
 		if ( !empty ($key) )
-			call_user_func( $key, $locs[$key] );
+			\call_user_func( "\\Bitweaver\\Liberty\\$key", $locs[$key] );
 	}
 }
