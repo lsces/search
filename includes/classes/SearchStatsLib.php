@@ -22,12 +22,12 @@ use Bitweaver\BitBase;
  */
 class SearchStatsLib extends BitBase {
 
-	function clear_search_stats() {
+	public function clear_search_stats() {
 		$query = "DELETE FROM `".BIT_DB_PREFIX."search_stats";
 		$result = $this->mDb->query($query,[]);
 	}
 
-	function list_search_stats($offset, $max_records, $sort_mode, $find) {
+	public function list_search_stats($offset, $max_records, $sort_mode, $find) {
 
 		if ($find) {
 			$mid = " WHERE (UPPER(`term`) LIKE ?)";
@@ -53,5 +53,3 @@ class SearchStatsLib extends BitBase {
 		return $retval;
 	}
 }
-
-$searchstatslib = new SearchStatsLib();

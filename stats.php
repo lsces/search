@@ -24,6 +24,8 @@ use Bitweaver\Search\SearchStatsLib;
 $gBitSystem->verifyFeature( 'search_stats' );
 $gBitSystem->verifyPermission( 'p_admin' );
 
+$searchstatslib = new SearchStatsLib();
+
 if (isset($_REQUEST["clear"])) {
 	$searchstatslib->clear_search_stats();
 }
