@@ -39,16 +39,16 @@
 					{formlabel label=$output.label for=$item}
 					{forminput}
 						{html_checkboxes name="$item" values="y" checked=$gBitSystem->getConfig($item) labels=false id=$item}
-						{formhelp note=$output.note page=$output.page}
+						{formhelp note=$output.note page=$output.page|default:''}
 					{/forminput}
 				</div>
 			{/foreach}
 
-			<input type="hidden" name="page" value="{$page}" />
+			<input type="hidden" name="page" value="{$page|default:''}" />
 			<div class="form-group">
 				{formlabel label="Searchable Content"}
 				{forminput}
-					{html_checkboxes options=$formSearchable.guids value=y name=searchable_content separator="<br />" checked=$formSearchable.checked}
+					{html_checkboxes options=$formSearchable.guids value=y name=searchable_content separator="<br />" checked=$formSearchable.checked|default:false}
 					{formhelp note="Here you can select what content can be searched."}
 				{/forminput}
 			</div>
