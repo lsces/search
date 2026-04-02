@@ -51,19 +51,19 @@ $formSearchInts = [
 
 if( !empty( $_REQUEST['del_index'] ) ) {
 	require_once SEARCH_PKG_INCLUDE_PATH.'/refresh_functions.php';
-	delete_index_content_type( $_REQUEST["where"] );
+	\Bitweaver\Liberty\delete_index_content_type( $_REQUEST["where"] );
 	$feedback['success'] = KernelTools::tra( "The search index was successfully deleted." );
 }
 
 if( !empty( $_REQUEST['del_index_reindex'] ) ) {
 	require_once SEARCH_PKG_INCLUDE_PATH.'/refresh_functions.php';
-	$count = rebuild_index( $_REQUEST["where"] );
+	$count = \Bitweaver\Liberty\rebuild_index( $_REQUEST["where"] );
 	$feedback['success'] = KernelTools::tra( "The search index was successfully deleted." ).KernelTools::tra( "Number of items re-indexed" ).": ".$count;
 }
 
 if( !empty( $_REQUEST['del_searchwords'] ) ) {
 	require_once SEARCH_PKG_INCLUDE_PATH.'/refresh_functions.php';
-	delete_search_words_and_syllables();
+	\Bitweaver\Liberty\delete_search_words_and_syllables();
 	$feedback['success'] = KernelTools::tra( "The searchwords were successfully purged from the database." );
 }
 

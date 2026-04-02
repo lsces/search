@@ -22,6 +22,7 @@
  * and pass it to refresh_index() to do the work.
  */
 namespace Bitweaver\Liberty;
+use Bitweaver\Liberty\rebuild_index;
 
 function random_refresh_index($pContentType = "") {
 	global $gBitSystem;
