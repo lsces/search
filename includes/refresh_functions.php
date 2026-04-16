@@ -33,6 +33,9 @@ function random_refresh_index($pContentType = "") {
 		case "wiki" :
 			$table = "wiki_pages";
 			break;
+		case "fisheye" :
+			$table = "fisheye_image";
+			break;
 		case "blogs" :
 			$table = "blogs";
 			break;
@@ -50,7 +53,9 @@ function random_refresh_index($pContentType = "") {
 		if($cant > 0) {
 			$query     = "SELECT `content_id` FROM `" . BIT_DB_PREFIX . $table . "`";
 			$contentId = $gBitSystem->mDb->getOne($query, [], 1, rand(0, $cant - 1));
-			refresh_index($contentId);
+			$contentObject = new LibertyContent();
+			$contentObject = $contentObject->getLibertyObject($contentId);
+			refresh_index($contentObject);
 		}
 	}
 }

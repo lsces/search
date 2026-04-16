@@ -39,6 +39,11 @@ function refresh_search_index() {
 //		if( $gBitSystem->isPackageActive( 'articles' ) ) {
 //			$locs[''] = ARTICLES_PKG_NAME;
 //		}
+		if( $gBitSystem->isPackageActive( 'fisheye' ) ) {
+			// if blogs is active, let's always refresh
+			random_refresh_index("fisheye");
+			$locs['random_refresh_index']="fisheye_image";
+		}
 		if( $gBitSystem->isPackageActive( 'blogs' ) ) {
 			// if blogs is active, let's always refresh
 			random_refresh_index("blogs");
