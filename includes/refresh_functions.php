@@ -22,7 +22,6 @@
  * and pass it to refresh_index() to do the work.
  */
 namespace Bitweaver\Liberty;
-use Bitweaver\Liberty\rebuild_index;
 
 function random_refresh_index($pContentType = "") {
 	global $gBitSystem;
@@ -90,7 +89,7 @@ function refresh_index( $pContentObject = null ) {
 function refresh_index_oldest(){
 	global $gBitSystem;
 	$contentId = $gBitSystem->mDb->getOne("SELECT `content_id` FROM `" . BIT_DB_PREFIX .
-				"search_index` ORDER BY `last_update`", []);
+				"search_index` ORDER BY `last_update`", [], );
 	if ( isset($contentId) ) {
 		refresh_index($contentId);
 	}

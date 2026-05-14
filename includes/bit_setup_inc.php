@@ -1,5 +1,6 @@
 <?php
 namespace Bitweaver\Search;
+
 global $gBitSystem, $gLibertySystem ;
 
 $pRegisterHash = [
@@ -12,9 +13,9 @@ $pRegisterHash = [
 define( 'SEARCH_PKG_NAME', $pRegisterHash['package_name'] );
 define( 'SEARCH_PKG_URL', BIT_ROOT_URL . basename( $pRegisterHash['package_path'] ) . '/' );
 define( 'SEARCH_PKG_PATH', BIT_ROOT_PATH . basename( $pRegisterHash['package_path'] ) . '/' );
-define( 'SEARCH_PKG_INCLUDE_PATH', BIT_ROOT_PATH . basename( $pRegisterHash['package_path'] ) . '/includes/'); 
+define( 'SEARCH_PKG_INCLUDE_PATH', BIT_ROOT_PATH . basename( $pRegisterHash['package_path'] ) . '/includes/');
 define( 'SEARCH_PKG_CLASS_PATH', BIT_ROOT_PATH . basename( $pRegisterHash['package_path'] ) . '/includes/classes/');
-define( 'SEARCH_PKG_ADMIN_PATH', BIT_ROOT_PATH . basename( $pRegisterHash['package_path'] ) . '/admin/'); 
+define( 'SEARCH_PKG_ADMIN_PATH', BIT_ROOT_PATH . basename( $pRegisterHash['package_path'] ) . '/admin/');
 
 $gBitSystem->registerPackage( $pRegisterHash );
 
@@ -35,5 +36,5 @@ if( $gBitSystem->isPackageActive( 'search' ) ) {
 	}
 	include_once SEARCH_PKG_INCLUDE_PATH . 'refresh_functions.php';
 	$gLibertySystem->registerService( LIBERTY_SERVICE_SEARCH, SEARCH_PKG_NAME,
-		[ 'content_store_function' => 'refresh_index'] );
+		[ 'content_store_function' => 'refresh_index'], );
 }

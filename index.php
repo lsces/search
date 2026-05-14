@@ -43,7 +43,7 @@ if( !empty($_REQUEST["highlight"]) ) {
 }
 
 if ($gBitSystem->isFeatureActive("search_stats")) {
-	$searchlib->register_search(isset($_REQUEST["words"]) ? $_REQUEST["words"] : '');
+	$searchlib->register_search($_REQUEST["words"] ?? '');
 }
 
 if (!isset($_REQUEST["content_type_guid"])) {
@@ -68,7 +68,7 @@ $_REQUEST["words"] = !isset($_REQUEST["words"]) || (empty($_REQUEST["words"])) ?
 $gBitSmarty->assign('words', $_REQUEST["words"]);
 $results = $searchlib->find( $_REQUEST );
 
-if ($_REQUEST['cant'] <> 1) $where2 .= "s"; 
+if ($_REQUEST['cant'] <> 1) $where2 .= "s";
 $gBitSmarty->assign('where2', KernelTools::tra($where2));
 $gBitSmarty->assign('content_type_guid', $_REQUEST["content_type_guid"]);
 
@@ -95,4 +95,4 @@ $gBitSmarty->assign( 'listInfo', $_REQUEST['listInfo'] );
 $gBitSmarty->assign('results', $results);
 
 // Display the template
-$gBitSystem->display( 'bitpackage:search/search.tpl', 'Search Results for: '.strip_tags($_REQUEST["highlight"]), array( 'display_mode' => 'display' ));
+$gBitSystem->display( 'bitpackage:search/search.tpl', 'Search Results for: '.strip_tags($_REQUEST["highlight"]), [ 'display_mode' => 'display' ]);

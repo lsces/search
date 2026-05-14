@@ -21,10 +21,10 @@ use Bitweaver\KernelTools;
  * Initialization
  */
 	global $gBitSystem, $gLibertySystem;
-	
+
 	$tplName = $gBitSystem->getActivePackage().'_mini_search.tpl';
 	$searchTemplatePath = BIT_ROOT_URL.constant( strtoupper( $gBitSystem->getActivePackage() ).'_PKG_PATH' ).'templates/'.$tplName;
-	
+
 	if( file_exists( $searchTemplatePath ) ) {
 		$searchTemplateRsrc = 'bitpackage:'.$gBitSystem->getActivePackage().'/'.$tplName;
 		$searchTitle = ucfirst( $gBitSystem->getActivePackage() );

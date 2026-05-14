@@ -13,7 +13,7 @@
  * @package search
  * @subpackage functions
  */
- 
+
 /**
  * required setup
  */
@@ -67,4 +67,4 @@ $gBitSmarty->assign('items', $items["data"]);
 
 $section = 'directory';
 // Display the template
-$gBitSystem->display( 'bitpackage:search/directory_search.tpl', null, array( 'display_mode' => 'display' ));
+$gBitSystem->display( 'bitpackage:search/directory_search.tpl', null, [ 'display_mode' => 'display' ]);

@@ -18,6 +18,7 @@
  */
 
 namespace Bitweaver\Search;
+
 use Bitweaver\BitBase;
 use Bitweaver\Liberty\LibertyBase;
 
@@ -37,7 +38,7 @@ class SearchLib extends BitBase {
 		foreach ($words as $word) {
 			$word = trim($word);
 			$cant = $this->mDb->getOne("SELECT COUNT(*) FROM `" . BIT_DB_PREFIX .
-				"search_stats` WHERE `term`=?", [ $word ]);
+				"search_stats` WHERE `term`=?", [ $word ], );
 				$query = $cant
 				? "UPDATE `" . BIT_DB_PREFIX . "search_stats` SET `hits`= `hits` + 1 WHERE `term`=?"
 				: "INSERT INTO `" . BIT_DB_PREFIX . "search_stats` (`term`,`hits`) VALUES (?,1)";
@@ -70,7 +71,7 @@ class SearchLib extends BitBase {
 			$bindvars = [ $syllable ];
 			$age      = time() - $this->mDb->getOne(
 						"select `last_updated` from `" . BIT_DB_PREFIX . "search_syllable` where `syllable`=?",
-						$bindvars);
+						$bindvars, );
 			if(!$age || $age > ($search_syll_age * 3600)) {// older than search_syll_age hours
 				$a = $this->refresh_lru_wordlist($syllable);
 			}
@@ -81,7 +82,7 @@ class SearchLib extends BitBase {
 			// update lru last used value (Used to purge oldest last used records)
 			$now = time();
 			$this->mDb->query("update `" . BIT_DB_PREFIX . "search_syllable` set `last_used`=? where `syllable`=?",
-				[ (int) $now, $syllable ]);
+				[ (int) $now, $syllable ], );
 		}
 		return $ret;
 	}
@@ -89,14 +90,14 @@ class SearchLib extends BitBase {
 	public function get_lru_wordlist($syllable) {
 		$ret = [];
 		if(!isset($this->wordlist_cache[$syllable])) {
-	       		$query  = "select `searchword` from `" . BIT_DB_PREFIX . "search_words` where `syllable`=?";
-        		$result = $this->mDb->query($query, [ $syllable ]);
-        		if ($result->RecordCount() > 0) {
-	        		while ($res = $result->fetchRow()) {
-    	    			$this->wordlist_cache[$syllable][]=$res["searchword"];
-        			}
-	        		$ret = $this->wordlist_cache[$syllable];
-        		}
+				   $query  = "select `searchword` from `" . BIT_DB_PREFIX . "search_words` where `syllable`=?";
+				$result = $this->mDb->query($query, [ $syllable ]);
+				if ($result->RecordCount() > 0) {
+					while ($res = $result->fetchRow()) {
+						$this->wordlist_cache[$syllable][]=$res["searchword"];
+					}
+					$ret = $this->wordlist_cache[$syllable];
+				}
 		}
 		return $ret;
 	}
@@ -124,13 +125,13 @@ class SearchLib extends BitBase {
 		foreach($ret as $searchword) {
 			$this->mDb->query("INSERT INTO `" . BIT_DB_PREFIX .
 				"search_words` (`syllable`,`searchword`) VALUES (?,?)",
-				[ $syllable, $searchword ], -1, -1);
+				[ $syllable, $searchword ], -1, -1, );
 			}
 		// set lru list parameters
 		$now = time();
 		$this->mDb->query("INSERT INTO `" . BIT_DB_PREFIX .
 			"search_syllable`(`syllable`,`last_used`,`last_updated`) values (?,?,?)",
-			[ $syllable, (int) $now, (int) $now ]);
+			[ $syllable, (int) $now, (int) $now ], );
 
 		// at random rate: check length of lru list and purge these that
 		// have not been used for long time. This is what a lru list
@@ -139,7 +140,7 @@ class SearchLib extends BitBase {
 		srand (ceil($sec + 100 * $usec));
 		if(rand(1, $search_lru_purge_rate) == 1) {
 			$lrulength = $this->mDb->getOne("SELECT COUNT(*) FROM `" . BIT_DB_PREFIX .
-				"search_syllable`", []);
+				"search_syllable`", [], );
 			if ($lrulength > $search_lru_length) { // only purge if lru list is too long.
 				//purge oldest
 				$oldwords = [];
@@ -151,9 +152,9 @@ class SearchLib extends BitBase {
 				}
 				foreach($oldwords as $oldword) {
 					$this->mDb->query("delete from `" . BIT_DB_PREFIX .
-						"search_words`    where `syllable`=?", [ $oldword ], -1, -1);
+						"search_words`    where `syllable`=?", [ $oldword ], -1, -1, );
 					$this->mDb->query("delete from `" . BIT_DB_PREFIX .
-						"search_syllable` where `syllable`=?", [ $oldword ], -1, -1);
+						"search_syllable` where `syllable`=?", [ $oldword ], -1, -1, );
 				}
 
 			}
@@ -297,7 +298,7 @@ class SearchLib extends BitBase {
 			$pParamHash['cant'] = 0;
 			$ret = [];
 		}
-        return $ret;
+		return $ret;
 	}
 
 	public function mergeResults(&$ret, $result) {

@@ -14,6 +14,7 @@
  */
 
 namespace Bitweaver\Search;
+
 use Bitweaver\BitBase;
 
 /**

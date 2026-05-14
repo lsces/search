@@ -1,5 +1,6 @@
 <?php
 namespace Bitweaver\Search;
+
 use Bitweaver\KernelTools;
 
 // $Header$

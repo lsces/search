@@ -36,7 +36,7 @@
 
 /**
  * Define Server Variables so script won't puke on command line
- */ 
+ */
 $_SERVER['SERVER_NAME']     = 'batch';
 $_SERVER['HTTP_HOST']       = 'batch';
 $_SERVER['HTTP_USER_AGENT'] = 'batch';
@@ -45,7 +45,6 @@ $_SERVER['SERVER_SOFTWARE'] = 'batch';
 $_SERVER['HTTP_USER_AGENT'] = 'batch';
 
 require_once '../kernel/includes/setup_inc.php';
-use Bitweaver\Liberty\LibertyBase;
 require_once 'includes/refresh_functions.php';
 
 $whatToIndex   = "pages";
