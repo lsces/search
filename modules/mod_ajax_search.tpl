@@ -1,16 +1,12 @@
-{* this needs to go in <head>, but we don't have a way of doing that from a module yet. *}
-<script src="{$smarty.const.UTIL_PKG_URL}javascript/libs/prototype.js"></script>
-<script src="{$smarty.const.UTIL_PKG_URL}javascript/libs/live_search.js"></script>
-<script>
-	var search = new LiveSearch($('search_box'), $('search_results')); 
-</script>
-{* end of <head> section *}
-
+{strip}
 {if $gBitSystem->isPackageActive( 'search' )}
 	{bitmodule title="$moduleTitle" name="search_new"}
-		{form}
-			<input id="search_box" type="text" name="search" value="Search..." />
-			<div id="search_results"></div>
-		{/form}
+		<input id="ajax_search_box" type="text" name="search" value="{tr}search{/tr}" />
+		<div id="ajax_search_results"></div>
 	{/bitmodule}
+	<script src="{$smarty.const.UTIL_PKG_URL}javascript/live_search.js"></script>
+	<script>
+		new LiveSearch('#ajax_search_box', '#ajax_search_results', '{$smarty.const.SEARCH_PKG_URL}ajax_search.php');
+	</script>
 {/if}
+{/strip}
