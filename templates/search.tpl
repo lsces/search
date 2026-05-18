@@ -72,6 +72,7 @@
 				<div class="boxcontent">
 					{$results[search].parsed|default:''|strip_tags|truncate:250}
 					<br />
+					{if !empty($results[search].blog_title)}<span class="blog-name">{tr}In{/tr}: {$results[search].blog_title|escape}</span><br />{/if}
 					<span class="date">{tr}Last modification{/tr}: {$results[search].last_modified|bit_long_datetime}</span>
 				</div>
 			</div>

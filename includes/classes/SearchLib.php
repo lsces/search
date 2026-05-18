@@ -21,6 +21,7 @@ namespace Bitweaver\Search;
 
 use Bitweaver\BitBase;
 use Bitweaver\Liberty\LibertyBase;
+use Bitweaver\Liberty\LibertyContent;
 
 class SearchLib extends BitBase {
 
@@ -166,7 +167,7 @@ class SearchLib extends BitBase {
 		// Putting in the below hack because mssql cannot select distinct on a text blob column.
 		$qPlaceHolders1 = implode(',', array_fill(0, count($pParamHash['words']), '?'));
 		$bindVars = array_merge( $pParamHash['words'], $allowed );
-//        $this->getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
+		LibertyContent::getServicesSql( 'search_extra_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
 		$ret = [];
 		$query = "SELECT
 						lc.`content_id`,
@@ -222,7 +223,7 @@ class SearchLib extends BitBase {
 		// Make a slot for the search word.
 		$bindVars[0] = null;
 		$bindVars = array_merge( $bindVars, $allowed );
-//		LibertyContent::getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
+		LibertyContent::getServicesSql( 'search_extra_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
 
 		$ret = [];
 		$first = true;
