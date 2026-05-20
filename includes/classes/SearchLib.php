@@ -243,8 +243,8 @@ class SearchLib extends BitBase {
 					LEFT OUTER JOIN `".BIT_DB_PREFIX."liberty_content_hits` lch ON (lc.`content_id` = lch.`content_id`)
 					$joinSql
 					INNER JOIN `".BIT_DB_PREFIX."search_index` si ON (si.`content_id`=lc.`content_id` AND si.`searchword` = ? )
-					WHERE `i_count` > 0 $whereSql
-					ORDER BY 9 DESC, 5 DESC
+					WHERE si.`i_count` > 0 $whereSql
+					ORDER BY relevancy DESC, hits DESC
 					";
 				$bindVars[0] = $word;
 				$result = $this->mDb->getAssoc( $query, $bindVars );
@@ -260,7 +260,10 @@ class SearchLib extends BitBase {
 			$pParamHash['cant'] = count($ret);
 
 			/* Sort it */
-			uasort($ret, 'search_relevance_sort');
+			uasort($ret, function($a, $b) {
+				$rel = $b['relevancy'] - $a['relevancy'];
+				return $rel == 0 ? $b['hits'] - $a['hits'] : $rel;
+			});
 
 			/* slice it */
 			$ret = array_slice($ret, $pParamHash['offset'], $pParamHash['offset'] + $pParamHash['max_records']);
@@ -332,12 +335,3 @@ class SearchLib extends BitBase {
 
 } # class SearchLib
 
-if (!defined('search_relevance_sort')) {
-	function search_relevance_sort($a, $b) {
-		$rel = $b['relevancy'] - $a['relevancy'];
-		if ($rel == 0) {
-			$rel = $b['hits'] - $a['hits'];
-		}
-		return $rel;
-	}
-}
