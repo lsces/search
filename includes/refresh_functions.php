@@ -69,6 +69,7 @@ function random_refresh_index($pContentType = "") {
 function refresh_index( $pContentObject = null ) {
 	global $gBitSystem;
 	if (is_object($pContentObject)) {
+		session_write_close();
 		if ( (!isset($pContentObject->mInfo["index_data"])) and method_exists($pContentObject, 'setIndexData')) {
 			$pContentObject->setIndexData() ;
 		}

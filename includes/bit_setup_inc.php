@@ -28,13 +28,15 @@ if( $gBitSystem->isPackageActive( 'search' ) ) {
 	$gBitSystem->registerAppMenu( $menuHash );
 
 	// **********  SEARCH  ************
-	// Register the search refresh function
-	// But only if the Index On Submit isn't set
-	if( ! $gBitSystem->isFeatureActive("search_index_on_submit") ) {
+	include_once SEARCH_PKG_INCLUDE_PATH . 'refresh_functions.php';
+	if( $gBitSystem->isFeatureActive("search_index_on_submit") ) {
+		// Index synchronously on every save
+		$gLibertySystem->registerService( LIBERTY_SERVICE_SEARCH, SEARCH_PKG_NAME,
+			[ 'content_store_function' => 'refresh_index'] );
+	} else {
+		// Background random refresh only — no synchronous indexing on save
 		include_once SEARCH_PKG_INCLUDE_PATH . 'refresh.php';
 		register_shutdown_function("\\Bitweaver\\Liberty\\refresh_search_index");
+		$gLibertySystem->registerService( LIBERTY_SERVICE_SEARCH, SEARCH_PKG_NAME, [] );
 	}
-	include_once SEARCH_PKG_INCLUDE_PATH . 'refresh_functions.php';
-	$gLibertySystem->registerService( LIBERTY_SERVICE_SEARCH, SEARCH_PKG_NAME,
-		[ 'content_store_function' => 'refresh_index'], );
 }
