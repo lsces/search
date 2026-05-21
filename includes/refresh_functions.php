@@ -122,15 +122,21 @@ function delete_index ($pContentId) {
 function insert_index( &$words, $location, $pContentId ) {
 	global $gBitSystem;
 	if( !empty( $pContentId ) ) {
-		delete_index($pContentId);
-		$now = $gBitSystem->getUTCTime();
-		foreach ($words as $key=>$value) {
-			if (strlen($key) >= $gBitSystem->getConfig( 'search_min_wordlength') ) {
-				// todo: stopwords + common words.
-				$query = "INSERT INTO `" . BIT_DB_PREFIX . "search_index`
-					(`content_id`,`searchword`,`i_count`,`last_update`) values (?,?,?,?)";
-				$gBitSystem->mDb->query($query, [ $pContentId, $key, (int) $value, $now ]);
-			} // What happened to location?
+		try {
+			$gBitSystem->mDb->StartTrans();
+			delete_index($pContentId);
+			$now = $gBitSystem->getUTCTime();
+			foreach ($words as $key=>$value) {
+				if (strlen($key) >= $gBitSystem->getConfig( 'search_min_wordlength') ) {
+					// todo: stopwords + common words.
+					$query = "INSERT INTO `" . BIT_DB_PREFIX . "search_index`
+						(`content_id`,`searchword`,`i_count`,`last_update`) values (?,?,?,?)";
+					$gBitSystem->mDb->query($query, [ $pContentId, $key, (int) $value, $now ]);
+				} // What happened to location?
+			}
+			$gBitSystem->mDb->CompleteTrans();
+		} catch (\Exception $e) {
+			$gBitSystem->mDb->RollbackTrans();
 		}
 	}
 }
