@@ -49,11 +49,9 @@ class SearchLib extends BitBase {
 
 	public function find( &$pParamHash ) { // $where, $words, $offset, $max_records, $plUsePart = false) {
 		$pParamHash['words'] = preg_split("/[\W]+/", strtolower($pParamHash['words']), -1, PREG_SPLIT_NO_EMPTY);
-		if ( isset($pParamHash['$plUsePart']) && $pParamHash['$plUsePart'] ) {
-			$wordList = $this->get_wordlist_from_syllables( $pParamHash['words'] );
-			if ([ $wordList ] ) {
-				$pParamHash['words'] = array_merge( $pParamHash['words'], $wordList );
-			}
+		$wordList = $this->get_wordlist_from_syllables( $pParamHash['words'] );
+		if( !empty( $wordList ) ) {
+			$pParamHash['words'] = array_unique( array_merge( $pParamHash['words'], $wordList ) );
 		}
 		$res = $this->find_exact_generic( $pParamHash );
 		return $res;
@@ -70,7 +68,7 @@ class SearchLib extends BitBase {
 		$ret = [];
 		foreach($syllables as $syllable) {
 			$bindvars = [ $syllable ];
-			$age      = time() - $this->mDb->getOne(
+			$age      = time() - (int)$this->mDb->getOne(
 						"select `last_updated` from `" . BIT_DB_PREFIX . "search_syllable` where `syllable`=?",
 						$bindvars, );
 			if(!$age || $age > ($search_syll_age * 3600)) {// older than search_syll_age hours
