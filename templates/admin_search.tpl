@@ -88,7 +88,7 @@
 			</div>
 			<div class="form-group submit">
 				<input type="submit" name="del_index" value="{tr}Delete Index Only{/tr}"/>
-				&nbsp;&nbsp;
+				
 				<input type="submit" name="del_index_reindex" value="{tr}Delete and Rebuild Index{/tr}"/>
 			</div>
 		{/form}
