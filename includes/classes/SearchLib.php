@@ -37,7 +37,11 @@ class SearchLib extends BitBase {
 		$words = addslashes($words);
 		$words = preg_split("/\s/", $words);
 		foreach ($words as $word) {
-			$word = trim($word);
+			// `term` is C(50): a longer value throws a PDOException (500)
+			$word = mb_substr( trim($word), 0, 50 );
+			if( $word === '' ) {
+				continue;
+			}
 			$cant = $this->mDb->getOne("SELECT COUNT(*) FROM `" . BIT_DB_PREFIX .
 				"search_stats` WHERE `term`=?", [ $word ], );
 				$query = $cant
