@@ -32,7 +32,7 @@ if( $gBitSystem->isPackageActive( 'search' ) ) {
 	if( $gBitSystem->isFeatureActive("search_index_on_submit") ) {
 		// Index synchronously on every save
 		$gLibertySystem->registerService( LIBERTY_SERVICE_SEARCH, SEARCH_PKG_NAME,
-			[ 'content_store_function' => 'refresh_index'] );
+			[ 'content_store_function' => 'refresh_index', 'content_index_function' => 'refresh_index_after_attachments' ] );
 	} else {
 		// Background random refresh only — no synchronous indexing on save
 		include_once SEARCH_PKG_INCLUDE_PATH . 'refresh.php';

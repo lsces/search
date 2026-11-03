@@ -62,6 +62,12 @@ if( !empty( $_REQUEST['del_index_reindex'] ) ) {
 	$feedback['success'] = KernelTools::tra( "The search index was successfully deleted." ).KernelTools::tra( "Number of items re-indexed" ).": ".$count;
 }
 
+if( !empty( $_REQUEST['index_unindexed'] ) ) {
+	require_once SEARCH_PKG_INCLUDE_PATH.'/refresh_functions.php';
+	$count = \Bitweaver\Liberty\rebuild_index( $_REQUEST["where"], true );
+	$feedback['success'] = KernelTools::tra( "Number of unindexed items indexed" ).": ".$count;
+}
+
 if( !empty( $_REQUEST['del_searchwords'] ) ) {
 	require_once SEARCH_PKG_INCLUDE_PATH.'/refresh_functions.php';
 	\Bitweaver\Liberty\delete_search_words_and_syllables();

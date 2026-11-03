@@ -87,6 +87,19 @@ function refresh_index( $pContentObject = null ) {
 	}
 }
 
+/*
+ * Re-index content whose text arrived after it was saved: a mime plugin (pdf) stores its text layer in
+ * liberty_content.data while storing the file, after refresh_index() has run on the save. verify() has already put the
+ * title-only index_data on the object, which refresh_index() would reuse, so drop it and let setIndexData() read the
+ * stored row. Called through the 'content_index_function' service from LibertyMime::store().
+ */
+function refresh_index_after_attachments( $pContentObject = null ) {
+	if( is_object( $pContentObject ) ) {
+		unset( $pContentObject->mInfo['index_data'] );
+		refresh_index( $pContentObject );
+	}
+}
+
 function refresh_index_oldest(){
 	global $gBitSystem;
 	$contentId = $gBitSystem->mDb->getOne("SELECT `content_id` FROM `" . BIT_DB_PREFIX .

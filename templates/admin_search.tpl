@@ -86,6 +86,13 @@
 					{formhelp note="Limit indexing action to the selected Liberty package"}
 				{/forminput}
 			</div>
+			<div class="form-group">
+				{formlabel label="Index what is missing:" for="index_unindexed"}
+				{forminput}
+					<input type="submit" name="index_unindexed" id="index_unindexed" value="{tr}Index Unindexed Only{/tr}"/>
+					{formhelp note="Indexes only the selected items that are not in the index yet, and deletes nothing. Use this for content stored with its text added afterwards, such as an uploaded PDF."}
+				{/forminput}
+			</div>
 			<div class="form-group submit">
 				<input type="submit" name="del_index" value="{tr}Delete Index Only{/tr}"/>
 				
