@@ -132,6 +132,11 @@ function delete_index ($pContentId) {
 	}
 }
 
+// the length of search_index.searchword
+if( !defined( 'SEARCH_MAX_WORDLENGTH' ) ) {
+	define( 'SEARCH_MAX_WORDLENGTH', 80 );
+}
+
 function insert_index( &$words, $location, $pContentId ) {
 	global $gBitSystem;
 	if( !empty( $pContentId ) ) {
@@ -140,7 +145,9 @@ function insert_index( &$words, $location, $pContentId ) {
 			delete_index($pContentId);
 			$now = $gBitSystem->getUTCTime();
 			foreach ($words as $key=>$value) {
-				if (strlen($key) >= $gBitSystem->getConfig( 'search_min_wordlength') ) {
+				// search_index.searchword is VARCHAR(80): a longer "word" (a line of underscores, encoded image data in a pdf's text) is not a word
+				// worth indexing, and inserting it fails - which used to roll back the whole item being saved
+				if (strlen($key) >= $gBitSystem->getConfig( 'search_min_wordlength') && strlen($key) <= SEARCH_MAX_WORDLENGTH ) {
 					// todo: stopwords + common words.
 					$query = "INSERT INTO `" . BIT_DB_PREFIX . "search_index`
 						(`content_id`,`searchword`,`i_count`,`last_update`) values (?,?,?,?)";
@@ -149,6 +156,8 @@ function insert_index( &$words, $location, $pContentId ) {
 			}
 			$gBitSystem->mDb->CompleteTrans();
 		} catch (\Exception $e) {
+			// RollbackTrans() here also undoes the item being saved when the index is refreshed from inside its save, so it must not be silent
+			error_log( 'search index: content_id '.$pContentId.' could not be indexed, and the item being saved is rolled back with it: '.$e->getMessage() );
 			$gBitSystem->mDb->RollbackTrans();
 		}
 	}
