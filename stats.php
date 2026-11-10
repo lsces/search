@@ -66,4 +66,4 @@ if ($offset > 0) {
 $gBitSmarty->assign('channels', $channels["data"]);
 
 // Display the template
-$gBitSystem->display( 'bitpackage:stats/search_stats.tpl', null, [ 'display_mode' => 'display' ]);
+$gBitSystem->display( 'bitpackage:search/search_stats.tpl', null, [ 'display_mode' => 'display' ]);
