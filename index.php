@@ -38,6 +38,7 @@ if( !empty($_REQUEST["highlight"]) ) {
   $_REQUEST["words"]=$_REQUEST["highlight"];
 } else {
 	// a nice big, groovy search will be cool to have one day...
+	$gBitSmarty->assign( 'usePart', true );   // partial word search is ticked by default
 	$gBitSystem->display( 'bitpackage:search/search.tpl', 'Search', [ 'display_mode' => 'display' ]);
 	die;
 }
@@ -55,12 +56,18 @@ if (!isset($_REQUEST["content_type_guid"])) {
 
 LibertyContent::prepGetList($_REQUEST);
 
-$_REQUEST['usePart'] = isset( $_REQUEST['usePart'] ) && $_REQUEST['usePart']=='on' ? true : false;
+// The check boxes arrive as "on" from the form and as 1 from the pagination links. Partial word search is on unless the form was submitted without it
+// (a link with no search form behind it - a "highlight" link from another page - gets it too, as that is the default).
+$flag = fn( $k ) => in_array( (string)( $_REQUEST[$k] ?? '' ), [ 'on', '1', 'y', 'true' ], true );
+$_REQUEST['usePart'] = isset( $_REQUEST['usePart'] ) ? $flag( 'usePart' ) : !isset( $_REQUEST['search'] );
 $gBitSmarty->assign('usePart', $_REQUEST['usePart']);
 $gBitSmarty->assign('searchType', $_REQUEST['usePart'] ? "Using Partial Word Search" : "Using Exact Word Search");
 
-$_REQUEST['useAnd'] = isset( $_REQUEST['useAnd'] ) && $_REQUEST['useAnd']=='on' ? true : false;
+$_REQUEST['useAnd'] = $flag( 'useAnd' );
 $gBitSmarty->assign('useAnd', $_REQUEST['useAnd']);
+// the pagination links name both options explicitly (y/n), as an option that is off must not read as the default
+$gBitSmarty->assign('useAndFlag', $_REQUEST['useAnd'] ? 'y' : 'n');
+$gBitSmarty->assign('usePartFlag', $_REQUEST['usePart'] ? 'y' : 'n');
 
 // Build the query using words
 $_REQUEST["words"] = !isset($_REQUEST["words"]) || (empty($_REQUEST["words"])) ? '' : strip_tags($_REQUEST["words"]);

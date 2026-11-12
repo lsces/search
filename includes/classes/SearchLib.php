@@ -52,11 +52,19 @@ class SearchLib extends BitBase {
 	}
 
 	public function find( &$pParamHash ) { // $where, $words, $offset, $max_records, $plUsePart = false) {
-		$pParamHash['words'] = preg_split("/[\W]+/", strtolower($pParamHash['words']), -1, PREG_SPLIT_NO_EMPTY);
-		$wordList = $this->get_wordlist_from_syllables( $pParamHash['words'] );
-		if( !empty( $wordList ) ) {
-			$pParamHash['words'] = array_unique( array_merge( $pParamHash['words'], $wordList ) );
+		$typed = array_values( array_unique( preg_split("/[\W]+/", strtolower($pParamHash['words']), -1, PREG_SPLIT_NO_EMPTY) ) );
+		// Each typed word keeps its own list of variants, so AND can ask for "any variant of every word" (a flat list would demand every variant of every word).
+		// With usePart the variants are the words in the index that start with the typed word; without it the typed word alone, an exact (indexed) match.
+		$terms = [];
+		foreach( $typed as $word ) {
+			$variants = [ $word ];
+			if( !empty( $pParamHash['usePart'] ) ) {
+				$variants = array_values( array_unique( array_merge( $variants, $this->get_wordlist_from_syllables( [ $word ] ) ) ) );
+			}
+			$terms[$word] = $variants;
 		}
+		$pParamHash['terms'] = $terms;
+		$pParamHash['words'] = $terms ? array_values( array_unique( array_merge( ...array_values( $terms ) ) ) ) : [];
 		$res = $this->find_exact_generic( $pParamHash );
 		return $res;
 	}
@@ -118,9 +126,13 @@ class SearchLib extends BitBase {
 		if (!isset($search_max_syllwords)) {
 			$search_max_syllwords = 100;
 		}
+		// A prefix match can use the index on searchword; a contains match ('%syllable%') cannot, so it reads every row of search_index -
+		// with the index at millions of rows that took over a minute and ran past the web server's time limit, and a lookup that never
+		// finishes is never cached. STARTING WITH is used rather than LIKE 'syllable%' because Firebird only uses the index for LIKE when the
+		// pattern is a literal, not a bound parameter; it also takes the word literally, with no wildcard characters.
 		$query  = "SELECT `searchword`, SUM(`i_count`) AS `cnt` FROM `" . BIT_DB_PREFIX .
-					"search_index` WHERE `searchword` LIKE ? GROUP BY `searchword` ORDER BY 2 desc";
-		$result = $this->mDb->query($query, [ "%$syllable%" ], $search_max_syllwords); // search_max_syllwords: how many different search_words that contain the syllable are taken into account?. Sortet by number of occurences.
+					"search_index` WHERE `searchword` STARTING WITH ? GROUP BY `searchword` ORDER BY 2 desc";
+		$result = $this->mDb->query($query, [ $syllable ], $search_max_syllwords); // search_max_syllwords: how many different search_words that start with the syllable are taken into account?. Sortet by number of occurences.
 		while ($res = $result->fetchRow()) {
 			$ret[] = $res["searchword"];
 		}
@@ -222,14 +234,15 @@ class SearchLib extends BitBase {
 	}
 
 	public function find_with_and($allowed, $selectSql, $joinSql, $whereSql, $bindVars, &$pParamHash) {
-		// Make a slot for the search word.
+		// Make a slot for the search words (filled per typed word below).
 		$bindVars[0] = null;
 		$bindVars = array_merge( $bindVars, $allowed );
 		LibertyContent::getServicesSql( 'search_extra_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
 
 		$ret = [];
 		$first = true;
-		foreach($pParamHash['words'] as $word) {
+		foreach( $pParamHash['terms'] as $variants ) {
+			$wordPlaceHolders = implode( ',', array_fill( 0, count( $variants ), '?' ) );
 			$query = "SELECT lc.`content_id` AS hash_key,
 						lc.`content_id`,
 						lc.`title`,
@@ -244,12 +257,20 @@ class SearchLib extends BitBase {
 					FROM `" . BIT_DB_PREFIX . "liberty_content` lc
 					LEFT OUTER JOIN `".BIT_DB_PREFIX."liberty_content_hits` lch ON (lc.`content_id` = lch.`content_id`)
 					$joinSql
-					INNER JOIN `".BIT_DB_PREFIX."search_index` si ON (si.`content_id`=lc.`content_id` AND si.`searchword` = ? )
+					INNER JOIN `".BIT_DB_PREFIX."search_index` si ON (si.`content_id`=lc.`content_id` AND si.`searchword` IN ( $wordPlaceHolders ) )
 					WHERE si.`i_count` > 0 $whereSql
 					ORDER BY relevancy DESC, hits DESC
 					";
-				$bindVars[0] = $word;
-				$result = $this->mDb->getAssoc( $query, $bindVars );
+				// one row per (page, variant): add the variants' counts up so a page is listed once with its total relevancy
+				$result = [];
+				foreach( $this->mDb->getAll( $query, array_merge( $variants, array_slice( $bindVars, 1 ) ) ) ?: [] as $row ) {
+					$id = $row['content_id'];
+					if( isset( $result[$id] ) ) {
+						$result[$id]['relevancy'] += $row['relevancy'];
+					} else {
+						$result[$id] = $row;
+					}
+				}
 				if ($first) {
 					$ret = $result;
 					$first = false;

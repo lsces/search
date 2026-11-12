@@ -18,7 +18,7 @@
 				{formlabel label="Use Partial Word Search" for="usePart"}
 				{forminput}
 					<input type="checkbox" name="usePart" id="usePart" {if $usePart}checked{/if} />
-					{formhelp note="This may slow search results"}
+					{formhelp note="Also finds words that start with the word typed (radio finds radios). Untick it for the exact word only, which gives fewer results."}
 				{/forminput}
 			</div>
 
@@ -80,7 +80,7 @@
 			{if $words}<div class="norecords">{tr}No pages matched the search criteria{/tr}</div>{/if}
 		{/section}
 
-		{pagination useAnd=$useAnd usePart=$usePart content_type_guid=$content_type_guid highlight=$words|escape }
+		{pagination useAnd=$useAndFlag usePart=$usePartFlag content_type_guid=$content_type_guid highlight=$words|escape }
 	</div>
 </div>
 {/strip}
