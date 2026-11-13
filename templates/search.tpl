@@ -7,10 +7,10 @@
 	<div class="body">
 		{form legend="Extended Search"}
 			<div class="form-group">
-				{formlabel label="Limit Search" for="content_type_guid"}
+				{formlabel label="Search in"}
 				{forminput}
-					{html_options options=$contentTypes name=content_type_guid selected=$content_type_guid }
-					{formhelp note="Limit search to the selected Liberty package"}
+					{include file="bitpackage:search/search_scope_inc.tpl"}
+					{formhelp note="Tick one or more areas to search only those; leave them all unticked to search everything."}
 				{/forminput}
 			</div>
 
@@ -80,7 +80,7 @@
 			{if $words}<div class="norecords">{tr}No pages matched the search criteria{/tr}</div>{/if}
 		{/section}
 
-		{pagination useAnd=$useAndFlag usePart=$usePartFlag content_type_guid=$content_type_guid highlight=$words|escape }
+		{pagination useAnd=$useAndFlag usePart=$usePartFlag content_type_guid=$content_type_guid scopes=$scopesCsv highlight=$words|escape }
 	</div>
 </div>
 {/strip}

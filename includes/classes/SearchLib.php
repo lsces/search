@@ -21,6 +21,7 @@ namespace Bitweaver\Search;
 
 use Bitweaver\BitBase;
 use Bitweaver\Liberty\LibertyBase;
+use Bitweaver\KernelTools;
 use Bitweaver\Liberty\LibertyContent;
 
 class SearchLib extends BitBase {
@@ -182,6 +183,9 @@ class SearchLib extends BitBase {
 		$qPlaceHolders1 = implode(',', array_fill(0, count($pParamHash['words']), '?'));
 		$bindVars = array_merge( $pParamHash['words'], $allowed );
 		LibertyContent::getServicesSql( 'search_extra_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
+		// the filters every content list applies (an access-control service leaves out what this user may not see): a search result lists the
+		// title and a piece of the text, so it must not show what the page would refuse
+		LibertyContent::getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
 		$ret = [];
 		$query = "SELECT
 						lc.`content_id`,
@@ -238,6 +242,9 @@ class SearchLib extends BitBase {
 		$bindVars[0] = null;
 		$bindVars = array_merge( $bindVars, $allowed );
 		LibertyContent::getServicesSql( 'search_extra_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
+		// the filters every content list applies (an access-control service leaves out what this user may not see): a search result lists the
+		// title and a piece of the text, so it must not show what the page would refuse
+		LibertyContent::getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
 
 		$ret = [];
 		$first = true;
@@ -303,10 +310,14 @@ class SearchLib extends BitBase {
 		global $gPage, $gBitSystem, $gLibertySystem, $gBitDbType;
 		$allowed = [];
 		$ret    = [];
+		// the Search in choice (scope[]), else the old single content_type_guid: null = every type, else the types wanted. A chosen scope that names content
+		// ids is every type the person may search, limited below to those ids (and the types chosen beside them).
+		$scope = self::resolveScopes( $pParamHash );
+		$wanted = $scope ? ( $scope['ids'] ? null : $scope['types'] ) : self::contentTypesFor( $pParamHash['content_type_guid'] ?? '' );
 		foreach( $gLibertySystem->mContentTypes as $contentType ) {
-			if (( $pParamHash['content_type_guid'] == $contentType["content_type_guid"] or $pParamHash['content_type_guid'] == "" ) // pages ?
+			if (( $wanted === null || in_array( $contentType["content_type_guid"], $wanted, true ) ) // pages ?
 			and $this->has_permission($contentType["content_type_guid"])
-			and ( ! $gBitSystem->getConfig('search_restrict_types') ||
+			and ( ! $gBitSystem->isFeatureActive('search_restrict_types') ||
 				  $gBitSystem->getConfig('search_pkg_'.$contentType["content_type_guid"]) ) ) {
 				$allowed[] = $contentType["content_type_guid"];
 			}
@@ -316,6 +327,9 @@ class SearchLib extends BitBase {
 			$selectSql = '';
 			$joinSql = '';
 			$whereSql = " AND  lc.`content_type_guid` IN (" . implode(',', array_fill(0, count($allowed), '?')) . ") ";
+			if( $scope ) {
+				$whereSql .= self::scopeWhereSql( $scope, $allowed );
+			}
 			$bindVars = [];
 
 			$ret = isset($pParamHash['useAnd']) && $pParamHash['useAnd']
@@ -338,6 +352,203 @@ class SearchLib extends BitBase {
 				$ret[$content_id]['relevancy'] += $result[$content_id]['relevancy'];
 			}
 		}
+	}
+
+	/**
+	 * The classes that contribute "scopes" to the Limit Search list (the service 'search_scopes_class'): a package that knows of things worth searching as a
+	 * whole - a library's top-level galleries, say - names a class with searchScopes() and searchScopeIds(), so search itself never names a package.
+	 *
+	 * @return list<class-string>
+	 */
+	private static function scopeProviders(): array {
+		global $gLibertySystem;
+		return array_values( array_filter( (array)$gLibertySystem->getServiceValues( 'search_scopes_class' ),
+			fn( $c ) => is_string( $c ) && class_exists( $c ) && method_exists( $c, 'searchScopes' ) && method_exists( $c, 'searchScopeIds' ) ) );
+	}
+
+	/** The content types the providers cover with scopes of their own (so the type groups below leave them out). */
+	private static function claimedTypes(): array {
+		static $claimed = null;
+		if( $claimed === null ) {
+			$claimed = [];
+			foreach( self::scopeProviders() as $class ) {
+				$claimed = array_merge( $claimed, (array)( $class::searchScopes()['claims'] ?? [] ) );
+			}
+		}
+		return $claimed;
+	}
+
+	/**
+	 * What the "Search in" list offers, as [ [ 'heading' => string, 'items' => [ key => label ] ], ... ]: each provider's scopes under its own heading, then
+	 * one entry per package group of the content types no provider claimed. A key is opaque to the page: it goes back as scope[] and is resolved by
+	 * resolveScopes().
+	 */
+	public static function getScopes(): array {
+		static $cache = null;
+		if( $cache !== null ) {
+			return $cache;
+		}
+		$out = [];
+		foreach( self::scopeProviders() as $class ) {
+			$def = $class::searchScopes();
+			if( !empty( $def['scopes'] ) ) {
+				$out[] = [ 'heading' => (string)( $def['heading'] ?? '' ), 'items' => (array)$def['scopes'] ];
+			}
+		}
+		$rest = [];
+		foreach( self::getSearchGroups() as $label => $types ) {
+			if( array_diff_key( $types, array_flip( self::claimedTypes() ) ) ) {
+				$rest[self::groupValue( $label )] = $label;
+			}
+		}
+		if( $rest ) {
+			$out[] = [ 'heading' => $out ? KernelTools::tra( 'Other content' ) : '', 'items' => $rest ];
+		}
+		return $cache = $out;
+	}
+
+	/**
+	 * What the scope[] (or scopes, the same keys comma-joined, as the pagination links carry them) in a request stands for: [ 'types' => the content types
+	 * chosen, 'ids' => the content ids chosen (a provider's scope), 'labels' => their names, 'keys' => the keys taken ], or null when nothing is chosen
+	 * (all content). A key nobody recognises - or a provider will not give, a gallery the viewer cannot open - is ignored.
+	 */
+	public static function resolveScopes( array $pParamHash ): ?array {
+		$keys = !empty( $pParamHash['scopes'] ) ? explode( ',', (string)$pParamHash['scopes'] ) : ( is_array( $pParamHash['scope'] ?? null ) ? $pParamHash['scope'] : [] );
+		$keys = array_values( array_unique( array_filter( array_map( 'strval', $keys ), fn( $k ) => $k !== '' && strlen( $k ) < 80 ) ) );
+		$got = [ 'types' => [], 'ids' => [], 'labels' => [], 'keys' => [] ];
+		foreach( $keys as $key ) {
+			if( str_starts_with( $key, 'group:' ) ) {
+				foreach( self::getSearchGroups() as $label => $types ) {
+					if( self::groupValue( $label ) === $key ) {
+						$got['types'] = array_merge( $got['types'], array_keys( array_diff_key( $types, array_flip( self::claimedTypes() ) ) ) );
+						$got['labels'][] = $label;
+						$got['keys'][] = $key;
+					}
+				}
+				continue;
+			}
+			foreach( self::scopeProviders() as $class ) {
+				if( ( $one = $class::searchScopeIds( $key ) ) !== null ) {
+					$got['ids'] = array_merge( $got['ids'], array_map( 'intval', $one['ids'] ) );
+					$got['labels'][] = (string)$one['label'];
+					$got['keys'][] = $key;
+					break;
+				}
+			}
+		}
+		if( !$got['keys'] ) {
+			return null;
+		}
+		$got['types'] = array_values( array_unique( $got['types'] ) );
+		$got['ids'] = array_values( array_unique( $got['ids'] ) );
+		return $got;
+	}
+
+	/**
+	 * The WHERE condition for a resolved scope: a content type listed or a content id listed (ids in blocks of 1,000, as one IN list is limited). Types are
+	 * taken only from those the person may search; ids are plain integers. Nothing in it needs binding.
+	 */
+	private static function scopeWhereSql( array $pScope, array $pAllowedTypes ): string {
+		$parts = [];
+		$types = array_values( array_intersect( $pScope['types'], $pAllowedTypes ) );
+		if( $types ) {
+			$parts[] = "lc.`content_type_guid` IN ( '".implode( "','", array_map( fn( $t ) => preg_replace( '/[^A-Za-z0-9_]/', '', $t ), $types ) )."' )";
+		}
+		foreach( array_chunk( $pScope['ids'], 1000 ) as $block ) {
+			$parts[] = "lc.`content_id` IN ( ".implode( ',', array_map( 'intval', $block ) )." )";
+		}
+		return $parts ? " AND ( ".implode( ' OR ', $parts )." ) " : " AND 1 = 0 ";
+	}
+
+	/**
+	 * The content types a person may search, grouped for the "Limit Search" list: [ heading => [ content_type_guid => name shown ] ], headings and the
+	 * types within them in alphabetical order. A type is listed under its package, headed with the package's menu text (the admin Menus page's name for
+	 * it, so a renamed package is named the same here); the search admin page can list one package's types under another's (a package that adds types to
+	 * another's menu), which is the only setting the grouping needs. A type is left out when the person may not view it, when Restrict Types is on and it
+	 * is not ticked there, or when there is no content of it - types with no content of their own, such as the file rows kept inside an object, are never
+	 * results, because the search index is keyed by content_id.
+	 *
+	 * @return array<string,array<string,string>>
+	 */
+	public static function getSearchGroups(): array {
+		global $gBitSystem, $gBitDb, $gLibertySystem;
+		static $cache = null;
+		if( $cache !== null ) {
+			return $cache;
+		}
+		$withContent = array_column( $gBitDb->getAll( "SELECT `content_type_guid` FROM `".BIT_DB_PREFIX."liberty_content` GROUP BY `content_type_guid`" ) ?: [], 'content_type_guid' );
+		$groups = [];
+		foreach( $gLibertySystem->mContentTypes as $guid => $cType ) {
+			if( !in_array( $guid, $withContent, true ) ) {
+				continue;
+			}
+			if( !self::has_permission( $guid ) || ( $gBitSystem->isFeatureActive( 'search_restrict_types' ) && !$gBitSystem->getConfig( 'search_pkg_'.$guid ) ) ) {
+				continue;
+			}
+			$package = strtolower( (string)$cType['handler_package'] );
+			$section = (string)$gBitSystem->getConfig( 'search_group_under_'.$package ) ?: $package;
+			$heading = (string)$gBitSystem->getConfig( $section.'_menu_text' ) ?: ucfirst( $section );
+			$groups[$heading][$guid] = $gLibertySystem->getContentTypeName( $guid );
+		}
+		uksort( $groups, 'strcasecmp' );
+		foreach( $groups as &$types ) {
+			asort( $types, SORT_FLAG_CASE | SORT_STRING );
+		}
+		unset( $types );
+		return $cache = $groups;
+	}
+
+	/** The value a group's "All ..." option carries in the content_type_guid parameter. */
+	public static function groupValue( string $pLabel ): string {
+		return 'group:'.trim( preg_replace( '/[^a-z0-9]+/', '-', strtolower( $pLabel ) ), '-' );
+	}
+
+	/**
+	 * The "Limit Search" options for html_options: All Content, then an optgroup per group - its own "All <group>" option first when it holds more than
+	 * one type, a single entry otherwise - so the list is short to scan and a whole kind of thing (all contacts, all TV) can be searched at once.
+	 */
+	public static function getContentTypeOptions(): array {
+		$options = [ '' => KernelTools::tra( 'All Content' ) ];
+		foreach( self::getSearchGroups() as $label => $types ) {
+			if( count( $types ) > 1 ) {
+				$options[$label] = [ self::groupValue( $label ) => KernelTools::tra( 'All' ).' '.$label ] + $types;
+			} else {
+				$options[array_key_first( $types )] = $label;   // a group of one is just an entry, named for the group
+			}
+		}
+		return $options;
+	}
+
+	/** The content types a content_type_guid parameter stands for: null for all, the group's types for "group:...", else the one type. */
+	public static function contentTypesFor( $pValue ): ?array {
+		$pValue = (string)$pValue;
+		if( $pValue === '' ) {
+			return null;
+		}
+		if( str_starts_with( $pValue, 'group:' ) ) {
+			foreach( self::getSearchGroups() as $label => $types ) {
+				if( self::groupValue( $label ) === $pValue ) {
+					return array_keys( $types );
+				}
+			}
+			return [];
+		}
+		return [ $pValue ];
+	}
+
+	/** What to call the thing searched for a content_type_guid parameter: the group's label, the type's name, or null when it is unknown. */
+	public static function labelFor( $pValue ): ?string {
+		global $gLibertySystem;
+		$pValue = (string)$pValue;
+		if( str_starts_with( $pValue, 'group:' ) ) {
+			foreach( self::getSearchGroups() as $label => $types ) {
+				if( self::groupValue( $label ) === $pValue ) {
+					return $label;
+				}
+			}
+			return null;
+		}
+		return $gLibertySystem->getContentTypeName( $pValue );
 	}
 
 	public static function has_permission($pContentType = null) {

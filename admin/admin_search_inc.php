@@ -104,6 +104,15 @@ foreach( $gLibertySystem->mContentTypes as $cType ) {
 	$formSearchable['guids']['search_pkg_'.$cType['content_type_guid']]  = $gLibertySystem->getContentTypeName( $cType['content_type_guid'] );
 }
 
+// the packages that own content types, for "list this package's types under another's" (search_group_under_<package>): a package that adds its
+// types to another package's menu is listed in the search page's "Limit Search" under that package's heading instead of a section of its own
+$searchPackages = [];
+foreach( $gLibertySystem->mContentTypes as $cType ) {
+	$pkg = strtolower( (string)$cType['handler_package'] );
+	$searchPackages[$pkg] = (string)$gBitSystem->getConfig( $pkg.'_menu_text' ) ?: ucfirst( $pkg );
+}
+ksort( $searchPackages );
+
 if( !empty( $_REQUEST['store_content'] ) ) {
 	foreach( $formSearchTypeToggles as $item => $data ) {
 		simple_set_toggle( $item, SEARCH_PKG_NAME );
@@ -111,8 +120,18 @@ if( !empty( $_REQUEST['store_content'] ) ) {
 	foreach( array_keys( $formSearchable['guids'] ) as $searchable ) {
 		$gBitSystem->storeConfig( $searchable, !empty( $_REQUEST['searchable_content'] ) && in_array( $searchable, $_REQUEST['searchable_content'] ) ? 'y' : null, SEARCH_PKG_NAME );
 	}
-
+	foreach( array_keys( $searchPackages ) as $pkg ) {
+		$under = strtolower( trim( (string)( $_REQUEST['search_under'][$pkg] ?? '' ) ) );
+		$gBitSystem->storeConfig( 'search_group_under_'.$pkg, $under !== '' && $under !== $pkg && isset( $searchPackages[$under] ) ? $under : null, SEARCH_PKG_NAME );
+	}
 }
+
+$searchUnder = [];
+foreach( array_keys( $searchPackages ) as $pkg ) {
+	$searchUnder[$pkg] = (string)$gBitSystem->getConfig( 'search_group_under_'.$pkg );
+}
+$gBitSmarty->assign( 'searchPackages', $searchPackages );
+$gBitSmarty->assign( 'searchUnder', $searchUnder );
 
 // check the correct packages in the package selection
 foreach( $gLibertySystem->mContentTypes as $cType ) {

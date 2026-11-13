@@ -26,13 +26,17 @@ $gBitSystem->verifyPackage( 'search' );
 // contentType list created in mod_package_search.php at present
 // but this is left in case a different search option is used
 if( empty( $contentTypes ) ) {
-	$contentTypes = [ '' => KernelTools::tra( 'All Content' ) ];
-	foreach( $gLibertySystem->mContentTypes as $cType ) {
-		$contentTypes[$cType['content_type_guid']] = $gLibertySystem->getContentTypeName( $cType['content_type_guid'] );
-	}
+	$contentTypes = SearchLib::getContentTypeOptions();
 }
-asort($contentTypes);
 $gBitSmarty->assign( 'contentTypes', $contentTypes );
+// the "Search in" list: scope[] on the form, scopes (the same keys, comma-joined) on the pagination links
+if( !empty( $_REQUEST['scope'] ) && is_array( $_REQUEST['scope'] ) ) {
+	$_REQUEST['scopes'] = implode( ',', array_map( 'strval', $_REQUEST['scope'] ) );
+}
+$scopeChosen = SearchLib::resolveScopes( $_REQUEST );
+$gBitSmarty->assign( 'searchScopes', SearchLib::getScopes() );
+$gBitSmarty->assign( 'scopeSelected', $scopeChosen['keys'] ?? [] );
+$gBitSmarty->assign( 'scopesCsv', implode( ',', $scopeChosen['keys'] ?? [] ) );
 
 if( !empty($_REQUEST["highlight"]) ) {
   $_REQUEST["words"]=$_REQUEST["highlight"];
@@ -51,7 +55,10 @@ if (!isset($_REQUEST["content_type_guid"])) {
 	$_REQUEST["content_type_guid"] = '';
 	$where2 = "Page";
 } else {
-	$where2 = $contentTypes[$_REQUEST["content_type_guid"]];
+	$where2 = SearchLib::labelFor( $_REQUEST["content_type_guid"] ) ?? "Page";
+}
+if( $scopeChosen ) {
+	$where2 = count( $scopeChosen['labels'] ) === 1 ? $scopeChosen['labels'][0] : KernelTools::tra( 'selected areas' );
 }
 
 LibertyContent::prepGetList($_REQUEST);
@@ -75,7 +82,7 @@ $_REQUEST["words"] = !isset($_REQUEST["words"]) || (empty($_REQUEST["words"])) ?
 $gBitSmarty->assign('words', $_REQUEST["words"]);
 $results = $searchlib->find( $_REQUEST );
 
-if ($_REQUEST['cant'] <> 1) $where2 .= "s";
+if ($_REQUEST['cant'] <> 1 && !$scopeChosen && !str_starts_with( (string)$_REQUEST['content_type_guid'], 'group:' )) $where2 .= "s";   // a group's label is already plural (Contacts)
 $gBitSmarty->assign('where2', KernelTools::tra($where2));
 $gBitSmarty->assign('content_type_guid', $_REQUEST["content_type_guid"]);
 

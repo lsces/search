@@ -53,6 +53,31 @@
 				{/forminput}
 			</div>
 
+			<div class="form-group">
+				{formlabel label="Group types by package"}
+				{forminput}
+					<p class="help-block">{tr}In the Limit Search list each package's types are listed under a heading, the package's menu name. A package that adds its types to another package's menu can be listed under that package's heading instead.{/tr}</p>
+					<table class="table table-condensed">
+						<thead><tr><th>{tr}Package{/tr}</th><th>{tr}List its types under{/tr}</th></tr></thead>
+						<tbody>
+							{foreach from=$searchPackages key=pkg item=label}
+								<tr>
+									<td>{$label|escape} <small class="text-muted">{$pkg}</small></td>
+									<td>
+										<select name="search_under[{$pkg}]">
+											<option value="">{tr}its own heading{/tr}</option>
+											{foreach from=$searchPackages key=other item=otherLabel}
+												{if $other ne $pkg}<option value="{$other}"{if $searchUnder.$pkg eq $other} selected="selected"{/if}>{$otherLabel|escape}</option>{/if}
+											{/foreach}
+										</select>
+									</td>
+								</tr>
+							{/foreach}
+						</tbody>
+					</table>
+				{/forminput}
+			</div>
+
 			<div class="form-group submit">
 				<input type="submit" name="store_content" value="{tr}Change preferences{/tr}" />
 			</div>

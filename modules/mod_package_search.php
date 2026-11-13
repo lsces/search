@@ -34,14 +34,7 @@ use Bitweaver\KernelTools;
 	}
 
 	if( empty( $contentTypes ) ) {
-		$contentTypes = [ '' => KernelTools::tra( 'All Content' ) ];
-		foreach( $gLibertySystem->mContentTypes as $cType ) {
-			if (SearchLib::has_permission($cType["content_type_guid"])
-				and ( ! $gBitSystem->getConfig('search_restrict_types') ||
-					  $gBitSystem->getConfig('search_pkg_'.$cType["content_type_guid"]) ) ) {
-				$contentTypes[$cType['content_type_guid']] = $gLibertySystem->getContentTypeName( $cType['content_type_guid'] );
-			}
-		}
+		$contentTypes = SearchLib::getContentTypeOptions();
 	}
 	$gBitSmarty->assign( 'contentTypes', $contentTypes );
 
