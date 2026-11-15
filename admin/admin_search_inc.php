@@ -91,62 +91,75 @@ $gBitSmarty->assign( 'formSearchToggles', $formSearchToggles );
 $gBitSmarty->assign( 'formSearchInts', $formSearchInts );
 $gBitSmarty->assign( 'feedback', $feedback );
 
-$formSearchTypeToggles = [
-	'search_restrict_types' => [
-		'label' => 'Restrict Types',
-		'note'  => 'If selected the search will be limited to those selected below.',
-	],
-];
-$gBitSmarty->assign( 'formSearchTypeToggles', $formSearchTypeToggles );
-
-// allow selection of what packages can have search
-foreach( $gLibertySystem->mContentTypes as $cType ) {
-	$formSearchable['guids']['search_pkg_'.$cType['content_type_guid']]  = $gLibertySystem->getContentTypeName( $cType['content_type_guid'] );
+// Searchable Content: one section per package, in the menu's order (the Themes > Menus page is the one source of package names and order). A
+// package is ticked searchable or not - that is the whole switch; what a person may see inside it is the access rules' job. A package whose menu is
+// off is still listed, and defaults to off until ticked. Each type of an active package also has its own tick (on until switched off).
+$menuOrder = array_flip( array_keys( $gBitSystem->mAppMenu['bar'] ?? [] ) );
+$searchSections = [];
+foreach( $gLibertySystem->mContentTypes as $guid => $cType ) {
+	if( !$gBitSystem->isPackageActive( strtolower( (string)$cType['handler_package'] ) ) ) {
+		continue;
+	}
+	$section = SearchLib::sectionOf( $guid );
+	if( !isset( $searchSections[$section] ) ) {
+		$searchSections[$section] = [
+			'title'       => SearchLib::sectionHeading( $section ),
+			'menu_hidden' => !empty( $gBitSystem->mAppMenu['bar'][$section]['is_disabled'] ),
+			'types'       => [],
+		];
+	}
+	// types a provider's scopes cover (the media galleries) are searched through that list, not as entries of their own
+	if( in_array( $guid, SearchLib::claimedTypes(), true ) ) {
+		$searchSections[$section]['by_scope'] = true;
+		continue;
+	}
+	$searchSections[$section]['types'][$guid] = [ 'name' => $gLibertySystem->getContentTypeName( $guid ) ];
 }
-
-// the packages that own content types, for "list this package's types under another's" (search_group_under_<package>): a package that adds its
-// types to another package's menu is listed in the search page's "Limit Search" under that package's heading instead of a section of its own
-$searchPackages = [];
-foreach( $gLibertySystem->mContentTypes as $cType ) {
-	$pkg = strtolower( (string)$cType['handler_package'] );
-	$searchPackages[$pkg] = (string)$gBitSystem->getConfig( $pkg.'_menu_text' ) ?: ucfirst( $pkg );
-}
-ksort( $searchPackages );
+uksort( $searchSections, function( $a, $b ) use ( $menuOrder, $searchSections ) {
+	return ( $menuOrder[$a] ?? PHP_INT_MAX ) <=> ( $menuOrder[$b] ?? PHP_INT_MAX ) ?: strcasecmp( $searchSections[$a]['title'], $searchSections[$b]['title'] );
+} );
 
 if( !empty( $_REQUEST['store_content'] ) ) {
-	foreach( $formSearchTypeToggles as $item => $data ) {
-		simple_set_toggle( $item, SEARCH_PKG_NAME );
+	// the sections shown on the form; one not shown (regrouped away) keeps its setting
+	foreach( array_keys( $_REQUEST['search_section'] ?? [] ) as $section ) {
+		$section = strtolower( (string)$section );
+		$gBitSystem->storeConfig( 'search_on_'.$section, !empty( $_REQUEST['search_on'][$section] ) ? 'y' : 'n', SEARCH_PKG_NAME );
 	}
-	foreach( array_keys( $formSearchable['guids'] ) as $searchable ) {
-		$gBitSystem->storeConfig( $searchable, !empty( $_REQUEST['searchable_content'] ) && in_array( $searchable, $_REQUEST['searchable_content'] ) ? 'y' : null, SEARCH_PKG_NAME );
+	foreach( array_keys( $_REQUEST['search_type_text'] ?? [] ) as $guid ) {
+		if( isset( $gLibertySystem->mContentTypes[$guid] ) ) {
+			$gBitSystem->storeConfig( 'search_type_on_'.$guid, !empty( $_REQUEST['search_type_on'][$guid] ) ? null : 'n', SEARCH_PKG_NAME );
+			$text = trim( (string)$_REQUEST['search_type_text'][$guid] );
+			$pos  = (int)( $_REQUEST['search_type_position'][$guid] ?? 0 );
+			$gBitSystem->storeConfig( 'search_type_text_'.$guid, $text !== '' && $text !== (string)$gLibertySystem->getContentTypeName( $guid ) ? $text : null, SEARCH_PKG_NAME );
+			$gBitSystem->storeConfig( 'search_type_position_'.$guid, $pos > 0 ? $pos : null, SEARCH_PKG_NAME );
+		}
 	}
-	foreach( array_keys( $searchPackages ) as $pkg ) {
-		$under = strtolower( trim( (string)( $_REQUEST['search_under'][$pkg] ?? '' ) ) );
-		$gBitSystem->storeConfig( 'search_group_under_'.$pkg, $under !== '' && $under !== $pkg && isset( $searchPackages[$under] ) ? $under : null, SEARCH_PKG_NAME );
+	// the old per-type ticks, Restrict Types and the regrouping setting no longer mean anything: clear them
+	foreach( array_keys( $gBitSystem->mConfig ) as $key ) {
+		if( str_starts_with( $key, 'search_pkg_' ) || str_starts_with( $key, 'search_group_under_' ) || $key === 'search_restrict_types' ) {
+			$gBitSystem->storeConfig( $key, null, SEARCH_PKG_NAME );
+		}
 	}
 }
 
-$searchUnder = [];
-foreach( array_keys( $searchPackages ) as $pkg ) {
-	$searchUnder[$pkg] = (string)$gBitSystem->getConfig( 'search_group_under_'.$pkg );
-}
-$gBitSmarty->assign( 'searchPackages', $searchPackages );
-$gBitSmarty->assign( 'searchUnder', $searchUnder );
-
-// check the correct packages in the package selection
-foreach( $gLibertySystem->mContentTypes as $cType ) {
-	if( $gBitSystem->getConfig( 'search_pkg_'.$cType['content_type_guid'] ) ) {
-		$formSearchable['checked'][] = 'search_pkg_'.$cType['content_type_guid'];
+foreach( $searchSections as $section => &$data ) {
+	$data['searchable'] = SearchLib::isSectionSearchable( $section );
+	foreach( $data['types'] as $guid => &$type ) {
+		$type['text']     = (string)$gBitSystem->getConfig( 'search_type_text_'.$guid ) ?: $type['name'];
+		$type['position'] = (string)$gBitSystem->getConfig( 'search_type_position_'.$guid );
+		$type['on']       = SearchLib::isTypeOn( $guid );
 	}
+	unset( $type );
 }
-$gBitSmarty->assign( 'formSearchable', $formSearchable );
+unset( $data );
+$gBitSmarty->assign( 'searchSections', $searchSections );
 
 /* usually done in mod_package_search.php - but the module can be not here the first time */
 if( empty( $contentTypes ) ) {
 	$contentTypes = [ '' => KernelTools::tra( 'All Content' ) ];
-	foreach( $gLibertySystem->mContentTypes as $cType ) {
-		if( $gBitSystem->getConfig( 'search_pkg_'.$cType['content_type_guid']) ) {
-			$contentTypes[$cType['content_type_guid']] = $gLibertySystem->getContentTypeName( $cType['content_type_guid'] );
+	foreach( $searchSections as $data ) {
+		foreach( $data['types'] as $guid => $type ) {
+			$contentTypes[$guid] = $type['name'];
 		}
 	}
 	$gBitSmarty->assign( 'contentTypes', $contentTypes );

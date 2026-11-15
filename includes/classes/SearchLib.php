@@ -316,9 +316,7 @@ class SearchLib extends BitBase {
 		$wanted = $scope ? ( $scope['ids'] ? null : $scope['types'] ) : self::contentTypesFor( $pParamHash['content_type_guid'] ?? '' );
 		foreach( $gLibertySystem->mContentTypes as $contentType ) {
 			if (( $wanted === null || in_array( $contentType["content_type_guid"], $wanted, true ) ) // pages ?
-			and $this->has_permission($contentType["content_type_guid"])
-			and ( ! $gBitSystem->isFeatureActive('search_restrict_types') ||
-				  $gBitSystem->getConfig('search_pkg_'.$contentType["content_type_guid"]) ) ) {
+			and self::isTypeSearchable( $contentType["content_type_guid"] ) ) {
 				$allowed[] = $contentType["content_type_guid"];
 			}
 		}
@@ -367,7 +365,7 @@ class SearchLib extends BitBase {
 	}
 
 	/** The content types the providers cover with scopes of their own (so the type groups below leave them out). */
-	private static function claimedTypes(): array {
+	public static function claimedTypes(): array {
 		static $claimed = null;
 		if( $claimed === null ) {
 			$claimed = [];
@@ -392,17 +390,19 @@ class SearchLib extends BitBase {
 		foreach( self::scopeProviders() as $class ) {
 			$def = $class::searchScopes();
 			if( !empty( $def['scopes'] ) ) {
-				$out[] = [ 'heading' => (string)( $def['heading'] ?? '' ), 'items' => (array)$def['scopes'] ];
+				$out[] = [ 'heading' => (string)( $def['heading'] ?? '' ), 'items' => (array)$def['scopes'], 'own_list' => true ];
 			}
 		}
-		$rest = [];
-		foreach( self::getSearchGroups() as $label => $types ) {
-			if( array_diff_key( $types, array_flip( self::claimedTypes() ) ) ) {
-				$rest[self::groupValue( $label )] = $label;
+		// the rest as one flat list, in the menu's package order and the admin's type order - no headings, no "All <package>" (tick two boxes instead)
+		$claimed = array_flip( self::claimedTypes() );
+		$items = [];
+		foreach( self::getSearchGroups() as $types ) {
+			foreach( array_diff_key( $types, $claimed ) as $guid => $name ) {
+				$items['type:'.$guid] = $name;
 			}
 		}
-		if( $rest ) {
-			$out[] = [ 'heading' => $out ? KernelTools::tra( 'Other content' ) : '', 'items' => $rest ];
+		if( $items ) {
+			$out[] = [ 'heading' => '', 'items' => $items ];
 		}
 		return $cache = $out;
 	}
@@ -422,6 +422,17 @@ class SearchLib extends BitBase {
 					if( self::groupValue( $label ) === $key ) {
 						$got['types'] = array_merge( $got['types'], array_keys( array_diff_key( $types, array_flip( self::claimedTypes() ) ) ) );
 						$got['labels'][] = $label;
+						$got['keys'][] = $key;
+					}
+				}
+				continue;
+			}
+			if( str_starts_with( $key, 'type:' ) ) {
+				$guid = substr( $key, 5 );
+				foreach( self::getSearchGroups() as $label => $types ) {
+					if( isset( $types[$guid] ) && !in_array( $guid, self::claimedTypes(), true ) ) {
+						$got['types'][] = $guid;
+						$got['labels'][] = $types[$guid];
 						$got['keys'][] = $key;
 					}
 				}
@@ -461,38 +472,89 @@ class SearchLib extends BitBase {
 	}
 
 	/**
-	 * The content types a person may search, grouped for the "Limit Search" list: [ heading => [ content_type_guid => name shown ] ], headings and the
-	 * types within them in alphabetical order. A type is listed under its package, headed with the package's menu text (the admin Menus page's name for
-	 * it, so a renamed package is named the same here); the search admin page can list one package's types under another's (a package that adds types to
-	 * another's menu), which is the only setting the grouping needs. A type is left out when the person may not view it, when Restrict Types is on and it
-	 * is not ticked there, or when there is no content of it - types with no content of their own, such as the file rows kept inside an object, are never
-	 * results, because the search index is keyed by content_id.
-	 *
-	 * @return array<string,array<string,string>>
+	 * The package a content type is listed under: its own, or - for a package that sits inside another's menu - that package. A package says so by
+	 * contributing a section to the parent's menu through the generic '<parent>_menu_tpl' service, so the menu and search read the same fact and
+	 * nothing is set here.
+	 */
+	public static function sectionOf( string $pGuid ): string {
+		global $gLibertySystem;
+		$package = strtolower( (string)( $gLibertySystem->mContentTypes[$pGuid]['handler_package'] ?? '' ) );
+		foreach( array_keys( $gLibertySystem->mServices[$package]['services'] ?? [] ) as $key ) {
+			if( str_ends_with( $key, '_menu_tpl' ) && ( $parent = substr( $key, 0, -9 ) ) !== $package && $parent !== '' ) {
+				return $parent;
+			}
+		}
+		return $package;
+	}
+
+	/**
+	 * Is a package (section) searchable? The admin's search_on_<package> y/n; until it has been set a package follows its menu: searchable
+	 * unless its menu is switched off. Packages with no menu entry are searchable.
+	 */
+	public static function isSectionSearchable( string $pSection ): bool {
+		global $gBitSystem;
+		$set = $gBitSystem->getConfig( 'search_on_'.$pSection );
+		if( $set === 'y' || $set === 'n' ) {
+			return $set === 'y';
+		}
+		return empty( $gBitSystem->mAppMenu['bar'][$pSection]['is_disabled'] );
+	}
+
+	/** Is one content type switched on? The admin's search_type_on_<guid> is only ever 'n'; a type is on until it is ticked off. */
+	public static function isTypeOn( string $pGuid ): bool {
+		global $gBitSystem;
+		return $gBitSystem->getConfig( 'search_type_on_'.$pGuid ) !== 'n';
+	}
+
+	/** The one test for a content type: its package is active, the person may see the type (access rules), and its package and the type are on. */
+	public static function isTypeSearchable( string $pGuid ): bool {
+		global $gBitSystem, $gLibertySystem;
+		$package = strtolower( (string)( $gLibertySystem->mContentTypes[$pGuid]['handler_package'] ?? '' ) );
+		return $gBitSystem->isPackageActive( $package ) && self::has_permission( $pGuid ) && self::isSectionSearchable( self::sectionOf( $pGuid ) ) && self::isTypeOn( $pGuid );
+	}
+
+	/** The heading for a package: its menu title (the menu is the one source of package names), else the capitalised package name. */
+	public static function sectionHeading( string $pSection ): string {
+		global $gBitSystem;
+		return (string)( $gBitSystem->mAppMenu['bar'][$pSection]['menu_title'] ?? '' ) ?: (string)$gBitSystem->getConfig( $pSection.'_menu_text' ) ?: ucfirst( $pSection );
+	}
+
+	/** The label of a content type in the search list: the admin's override, else its own name. */
+	public static function typeLabel( string $pGuid ): string {
+		global $gBitSystem, $gLibertySystem;
+		return (string)$gBitSystem->getConfig( 'search_type_text_'.$pGuid ) ?: (string)$gLibertySystem->getContentTypeName( $pGuid );
+	}
+
+	/**
+	 * The searchable types grouped for the "Limit Search" list: headings in the menu's order (packages outside the menu follow, alphabetically),
+	 * types within a heading by the admin's position then name.
 	 */
 	public static function getSearchGroups(): array {
-		global $gBitSystem, $gBitDb, $gLibertySystem;
+		global $gBitSystem, $gLibertySystem;
 		static $cache = null;
 		if( $cache !== null ) {
 			return $cache;
 		}
-		$withContent = array_column( $gBitDb->getAll( "SELECT `content_type_guid` FROM `".BIT_DB_PREFIX."liberty_content` GROUP BY `content_type_guid`" ) ?: [], 'content_type_guid' );
-		$groups = [];
+		$menuOrder = array_flip( array_keys( $gBitSystem->mAppMenu['bar'] ?? [] ) );
+		$groups = $rank = $typeRank = [];
 		foreach( $gLibertySystem->mContentTypes as $guid => $cType ) {
-			if( !in_array( $guid, $withContent, true ) ) {
+			if( !self::isTypeSearchable( $guid ) ) {
 				continue;
 			}
-			if( !self::has_permission( $guid ) || ( $gBitSystem->isFeatureActive( 'search_restrict_types' ) && !$gBitSystem->getConfig( 'search_pkg_'.$guid ) ) ) {
-				continue;
-			}
-			$package = strtolower( (string)$cType['handler_package'] );
-			$section = (string)$gBitSystem->getConfig( 'search_group_under_'.$package ) ?: $package;
-			$heading = (string)$gBitSystem->getConfig( $section.'_menu_text' ) ?: ucfirst( $section );
-			$groups[$heading][$guid] = $gLibertySystem->getContentTypeName( $guid );
+			$section = self::sectionOf( $guid );
+			$heading = self::sectionHeading( $section );
+			$groups[$heading][$guid] = self::typeLabel( $guid );
+			$rank[$heading] = $menuOrder[$section] ?? PHP_INT_MAX;
+			$typeRank[$guid] = (int)$gBitSystem->getConfig( 'search_type_position_'.$guid ) ?: PHP_INT_MAX;
 		}
-		uksort( $groups, 'strcasecmp' );
+		uksort( $groups, function( $a, $b ) use ( $rank ) {
+			return $rank[$a] <=> $rank[$b] ?: strcasecmp( $a, $b );
+		} );
 		foreach( $groups as &$types ) {
-			asort( $types, SORT_FLAG_CASE | SORT_STRING );
+			$labels = $types;
+			uksort( $types, function( $a, $b ) use ( $typeRank, $labels ) {
+				return $typeRank[$a] <=> $typeRank[$b] ?: strcasecmp( $labels[$a], $labels[$b] );
+			} );
 		}
 		unset( $types );
 		return $cache = $groups;

@@ -34,49 +34,31 @@
 
 	{jstab title="Searchable Content"}
 		{form legend="Searchable Content"}
-			{foreach from=$formSearchTypeToggles key=item item=output}
-				<div class="form-group">
-					{formlabel label=$output.label for=$item}
-					{forminput}
-						{html_checkboxes name="$item" values="y" checked=$gBitSystem->getConfig($item) labels=false id=$item}
-						{formhelp note=$output.note page=$output.page|default:''}
-					{/forminput}
-				</div>
-			{/foreach}
-
 			<input type="hidden" name="page" value="{$page|default:''}" />
-			<div class="form-group">
-				{formlabel label="Searchable Content"}
-				{forminput}
-					{html_checkboxes options=$formSearchable.guids value=y name=searchable_content separator="<br />" checked=$formSearchable.checked|default:false}
-					{formhelp note="Here you can select what content can be searched."}
-				{/forminput}
-			</div>
-
-			<div class="form-group">
-				{formlabel label="Group types by package"}
-				{forminput}
-					<p class="help-block">{tr}In the Limit Search list each package's types are listed under a heading, the package's menu name. A package that adds its types to another package's menu can be listed under that package's heading instead.{/tr}</p>
-					<table class="table table-condensed">
-						<thead><tr><th>{tr}Package{/tr}</th><th>{tr}List its types under{/tr}</th></tr></thead>
-						<tbody>
-							{foreach from=$searchPackages key=pkg item=label}
-								<tr>
-									<td>{$label|escape} <small class="text-muted">{$pkg}</small></td>
-									<td>
-										<select name="search_under[{$pkg}]">
-											<option value="">{tr}its own heading{/tr}</option>
-											{foreach from=$searchPackages key=other item=otherLabel}
-												{if $other ne $pkg}<option value="{$other}"{if $searchUnder.$pkg eq $other} selected="selected"{/if}>{$otherLabel|escape}</option>{/if}
-											{/foreach}
-										</select>
-									</td>
-								</tr>
-							{/foreach}
-						</tbody>
-					</table>
-				{/forminput}
-			</div>
+			<p class="help-block">{tr}Packages are listed in the order and with the names set on the Themes Menus page. Tick a package to make its content searchable; a package whose menu is hidden is listed too, and is off until ticked. Inside a package each type of content has its own tick (a blog site may only want its posts searched), in the order and with the name given here (blank position = alphabetical). Which items a person may see is still decided by the access rules, so a type they cannot view never appears in their search.{/tr}</p>
+			<table class="table table-condensed">
+				<thead><tr><th>{tr}Package{/tr}</th><th>{tr}Searchable{/tr}</th><th>{tr}Content type{/tr}</th><th>{tr}Shown in search as{/tr}</th><th>{tr}Position{/tr}</th></tr></thead>
+				{foreach from=$searchSections key=section item=data}
+					<tbody>
+						<tr class="active">
+							<td colspan="5">
+								<input type="hidden" name="search_section[{$section}]" value="1" />
+								<label><input type="checkbox" name="search_on[{$section}]" value="y"{if $data.searchable} checked="checked"{/if} /> <strong>{$data.title|escape}</strong></label>
+								<small class="text-muted">{$section}{if $data.menu_hidden} &mdash; {tr}menu hidden{/tr}{/if}{if !empty($data.by_scope)} &mdash; {tr}searched by gallery, from its own list in the search box{/tr}{/if}</small>
+							</td>
+						</tr>
+						{foreach from=$data.types key=guid item=type}
+							<tr>
+								<td></td>
+								<td><input type="checkbox" name="search_type_on[{$guid}]" value="y"{if $type.on} checked="checked"{/if} /></td>
+								<td>{$type.name|escape} <small class="text-muted">{$guid}</small></td>
+								<td><input type="text" size="30" name="search_type_text[{$guid}]" value="{$type.text|escape}" /></td>
+								<td><input type="text" size="3" name="search_type_position[{$guid}]" value="{$type.position|escape}" /></td>
+							</tr>
+						{/foreach}
+					</tbody>
+				{/foreach}
+			</table>
 
 			<div class="form-group submit">
 				<input type="submit" name="store_content" value="{tr}Change preferences{/tr}" />
