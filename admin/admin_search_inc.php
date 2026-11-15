@@ -154,13 +154,16 @@ foreach( $searchSections as $section => &$data ) {
 unset( $data );
 $gBitSmarty->assign( 'searchSections', $searchSections );
 
-/* usually done in mod_package_search.php - but the module can be not here the first time */
+// The "Perform action on" list of the Delete / Rebuild Index tab: every content type of an active package (including the ones a provider's scopes
+// cover, which the grid above leaves out), each named with its package - Food and Stock both have a "Component" and a "Movement".
 if( empty( $contentTypes ) ) {
-	$contentTypes = [ '' => KernelTools::tra( 'All Content' ) ];
-	foreach( $searchSections as $data ) {
-		foreach( $data['types'] as $guid => $type ) {
-			$contentTypes[$guid] = $type['name'];
+	$indexTypes = [];
+	foreach( $gLibertySystem->mContentTypes as $guid => $cType ) {
+		if( $gBitSystem->isPackageActive( strtolower( (string)$cType['handler_package'] ) ) ) {
+			$indexTypes[$guid] = SearchLib::sectionHeading( SearchLib::sectionOf( $guid ) ).' - '.$gLibertySystem->getContentTypeName( $guid );
 		}
 	}
+	asort( $indexTypes, SORT_FLAG_CASE | SORT_STRING );
+	$contentTypes = [ '' => KernelTools::tra( 'All Content' ) ] + $indexTypes;
 	$gBitSmarty->assign( 'contentTypes', $contentTypes );
 }
