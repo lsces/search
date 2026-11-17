@@ -138,15 +138,16 @@ class SearchLib extends BitBase {
 			$ret[] = $res["searchword"];
 		}
 		// cache this long running query
-		foreach($ret as $searchword) {
-			$this->mDb->query("INSERT INTO `" . BIT_DB_PREFIX .
-				"search_words` (`syllable`,`searchword`) VALUES (?,?)",
+		// UPDATE OR INSERT: two requests can refresh the same syllable at once (both delete, then both insert), so a plain INSERT hit the primary key.
+		foreach(array_unique($ret) as $searchword) {
+			$this->mDb->query("UPDATE OR INSERT INTO `" . BIT_DB_PREFIX .
+				"search_words` (`syllable`,`searchword`) VALUES (?,?) MATCHING (`syllable`,`searchword`)",
 				[ $syllable, $searchword ], -1, -1, );
 			}
 		// set lru list parameters
 		$now = time();
-		$this->mDb->query("INSERT INTO `" . BIT_DB_PREFIX .
-			"search_syllable`(`syllable`,`last_used`,`last_updated`) values (?,?,?)",
+		$this->mDb->query("UPDATE OR INSERT INTO `" . BIT_DB_PREFIX .
+			"search_syllable`(`syllable`,`last_used`,`last_updated`) values (?,?,?) MATCHING (`syllable`)",
 			[ $syllable, (int) $now, (int) $now ], );
 
 		// at random rate: check length of lru list and purge these that
