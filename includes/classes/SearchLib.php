@@ -210,24 +210,33 @@ class SearchLib extends BitBase {
 						lc.`created`,
 						lc.`last_modified`,
 						lc.`data`,
-						r.`relevancy` AS relevancy
+						r.`relevancy` AS relevancy,
+						COUNT(*) OVER () AS total_found
 						$selectSql
 					$fromSql
 					ORDER BY 9 DESC, 5 DESC
 					";
-		$querycant = "SELECT COUNT(*) $fromSql";
 		$result = $this->mDb->query( $query, $bindVars, $pParamHash['max_records'], $pParamHash['offset'] );
-		$pParamHash['cant'] = $this->mDb->getOne( $querycant, $bindVars );
+		// the total comes from the same pass (a window count over every page that matched), so the words are not summed a second time just to count
+		$pParamHash['cant'] = null;
 		while ($res = $result->fetchRow()) {
+			$pParamHash['cant'] = (int)$res['total_found'];
+			unset( $res['total_found'] );
 			$res['href'] = BIT_ROOT_URL . "index.php?content_id=" . $res['content_id'];
 			$ret[] = $res;
+		}
+		if( $pParamHash['cant'] === null ) {
+			// no row came back (a page past the end, or nothing found): count them the long way
+			$pParamHash['cant'] = (int)$this->mDb->getOne( "SELECT COUNT(*) $fromSql", $bindVars );
 		}
 		return $ret;
 	}
 
 	public function find_with_and($allowed, $selectSql, $joinSql, $whereSql, $bindVars, &$pParamHash) {
-		// Make a slot for the search words (filled per typed word below).
-		$bindVars[0] = null;
+		// Every typed word gets its own sum per page, over the word and its variants, from search_index (nothing but ids and a count); the sums are joined
+		// on the page id, so only a page that has every typed word is left, with the relevancies added up, and only then are the pages' rows read and the
+		// one screenful taken. (The earlier form read a full row, text included, for every page and variant of each word into PHP and merged and sorted
+		// them there: seconds to tens of seconds for a common word on a site with 30,000 pages.)
 		$bindVars = array_merge( $bindVars, $allowed );
 		LibertyContent::getServicesSql( 'search_extra_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
 		// the filters every content list applies (an access-control service leaves out what this user may not see): a search result lists the
@@ -235,11 +244,33 @@ class SearchLib extends BitBase {
 		LibertyContent::getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
 
 		$ret = [];
-		$first = true;
+		$wordBinds = [];
+		$derived = [];
+		$relevancy = [];
+		$n = 0;
 		foreach( $pParamHash['terms'] as $variants ) {
-			$wordPlaceHolders = implode( ',', array_fill( 0, count( $variants ), '?' ) );
-			$query = "SELECT lc.`content_id` AS hash_key,
-						lc.`content_id`,
+			$n++;
+			$placeHolders = implode( ',', array_fill( 0, count( $variants ), '?' ) );
+			$on = $n > 1 ? " ON (r$n.`content_id` = r1.`content_id`)" : '';
+			$derived[] = ( $n > 1 ? "INNER JOIN " : "" ) . "(
+							SELECT si.`content_id`, SUM(si.`i_count`) AS `relevancy`
+							FROM `" . BIT_DB_PREFIX . "search_index` si
+							WHERE si.`searchword` IN (" . $placeHolders . ") AND si.`i_count` > 0
+							GROUP BY si.`content_id`
+						) r$n" . $on;
+			$relevancy[] = "r$n.`relevancy`";
+			$wordBinds = array_merge( $wordBinds, array_values( $variants ) );
+		}
+		if( !$derived ) {
+			$pParamHash['cant'] = 0;
+			return $ret;
+		}
+		$fromSql = "FROM " . implode( "\n\t\t\t\t\t\t", $derived ) . "
+						INNER JOIN `" . BIT_DB_PREFIX . "liberty_content` lc ON (lc.`content_id` = r1.`content_id`)
+						LEFT OUTER JOIN `".BIT_DB_PREFIX."liberty_content_hits` lch ON (lc.`content_id` = lch.`content_id`)
+						$joinSql
+						WHERE 1=1 $whereSql";
+		$query = "SELECT lc.`content_id`,
 						lc.`title`,
 						lc.`format_guid`,
 						lc.`content_type_guid`,
@@ -247,51 +278,27 @@ class SearchLib extends BitBase {
 						lc.`created`,
 						lc.`last_modified`,
 						lc.`data`,
-						si.`i_count` AS relevancy
+						" . implode( ' + ', $relevancy ) . " AS relevancy,
+						COUNT(*) OVER () AS total_found
 						$selectSql
-					FROM `" . BIT_DB_PREFIX . "liberty_content` lc
-					LEFT OUTER JOIN `".BIT_DB_PREFIX."liberty_content_hits` lch ON (lc.`content_id` = lch.`content_id`)
-					$joinSql
-					INNER JOIN `".BIT_DB_PREFIX."search_index` si ON (si.`content_id`=lc.`content_id` AND si.`searchword` IN ( $wordPlaceHolders ) )
-					WHERE si.`i_count` > 0 $whereSql
-					ORDER BY relevancy DESC, hits DESC
+					$fromSql
+					ORDER BY 9 DESC, 5 DESC, 1
 					";
-				// one row per (page, variant): add the variants' counts up so a page is listed once with its total relevancy
-				$result = [];
-				foreach( $this->mDb->getAll( $query, array_merge( $variants, array_slice( $bindVars, 1 ) ) ) ?: [] as $row ) {
-					$id = $row['content_id'];
-					if( isset( $result[$id] ) ) {
-						$result[$id]['relevancy'] += $row['relevancy'];
-					} else {
-						$result[$id] = $row;
-					}
-				}
-				if ($first) {
-					$ret = $result;
-					$first = false;
-				}
-				else {
-					$this->mergeResults($ret, $result);
-				}
-			}
-			/* count it */
-			$pParamHash['cant'] = count($ret);
-
-			/* Sort it */
-			uasort($ret, function($a, $b) {
-				$rel = $b['relevancy'] - $a['relevancy'];
-				return $rel == 0 ? $b['hits'] - $a['hits'] : $rel;
-			});
-
-			/* slice it */
-			$ret = array_slice($ret, $pParamHash['offset'], $pParamHash['offset'] + $pParamHash['max_records']);
-
-			/* Set the hrefs. */
-			foreach ($ret as $content_id => $data) {
-				$ret[$content_id]['href'] = BIT_ROOT_URL . "index.php?content_id=" . $data['content_id'];
-			}
-
-			return $ret;
+		$binds = array_merge( $wordBinds, $bindVars );
+		$result = $this->mDb->query( $query, $binds, $pParamHash['max_records'], $pParamHash['offset'] );
+		// the total comes from the same pass (a window count over every page that matched), so the words are not summed a second time just to count
+		$pParamHash['cant'] = null;
+		while( $res = $result->fetchRow() ) {
+			$pParamHash['cant'] = (int)$res['total_found'];
+			unset( $res['total_found'] );
+			$res['href'] = BIT_ROOT_URL . "index.php?content_id=" . $res['content_id'];
+			$ret[] = $res;
+		}
+		if( $pParamHash['cant'] === null ) {
+			// no row came back (a page past the end, or nothing found): count them the long way
+			$pParamHash['cant'] = (int)$this->mDb->getOne( "SELECT COUNT(*) $fromSql", $binds );
+		}
+		return $ret;
 	}
 
 	public function find_exact_generic( &$pParamHash ) {
