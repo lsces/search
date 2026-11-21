@@ -180,7 +180,9 @@ class SearchLib extends BitBase {
 	}
 
 	public function find_with_or($allowed, $selectSql, $joinSql, $whereSql, $bindVars,&$pParamHash) {
-		// Putting in the below hack because mssql cannot select distinct on a text blob column.
+		// The words (and their variants) are looked up once, in the word index, and summed per page; only those pages are then joined to the content
+		// table. (The earlier form asked, for every row of liberty_content, a subquery into search_index - twice, and a third time for the count - which
+		// read about 12 million index entries for a one-word search on a 32,000-page site; this reads the matching entries only.)
 		$qPlaceHolders1 = implode(',', array_fill(0, count($pParamHash['words']), '?'));
 		$bindVars = array_merge( $pParamHash['words'], $allowed );
 		LibertyContent::getServicesSql( 'search_extra_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
@@ -188,6 +190,17 @@ class SearchLib extends BitBase {
 		// title and a piece of the text, so it must not show what the page would refuse
 		LibertyContent::getServicesSql( 'content_list_sql_function', $selectSql, $joinSql, $whereSql, $bindVars );
 		$ret = [];
+		$fromSql = "FROM (
+							SELECT si.`content_id`, SUM(si.`i_count`) AS `relevancy`
+							FROM `" . BIT_DB_PREFIX . "search_index` si
+							WHERE si.`searchword` IN (" . $qPlaceHolders1 . ")
+							GROUP BY si.`content_id`
+							HAVING SUM(si.`i_count`)>0
+						) r
+						INNER JOIN `" . BIT_DB_PREFIX . "liberty_content` lc ON (lc.`content_id` = r.`content_id`)
+						LEFT OUTER JOIN `".BIT_DB_PREFIX."liberty_content_hits` lch ON (lc.`content_id` = lch.`content_id`)
+						$joinSql
+						WHERE 1=1 $whereSql";
 		$query = "SELECT
 						lc.`content_id`,
 						lc.`title`,
@@ -197,45 +210,19 @@ class SearchLib extends BitBase {
 						lc.`created`,
 						lc.`last_modified`,
 						lc.`data`,
-						COALESCE((
-							SELECT SUM(i_count)
-							FROM `" . BIT_DB_PREFIX . "search_index` si
-							WHERE si.`content_id`=lc.`content_id` AND si.`searchword` IN (" . $qPlaceHolders1 . ")
-						),0) AS relevancy
+						r.`relevancy` AS relevancy
 						$selectSql
-					FROM `" . BIT_DB_PREFIX . "liberty_content` lc
-					LEFT OUTER JOIN `".BIT_DB_PREFIX."liberty_content_hits` lch ON (lc.`content_id` = lch.`content_id`)
-					$joinSql
-					WHERE (
-						SELECT SUM(i_count)
-						FROM `" . BIT_DB_PREFIX . "search_index` si
-						WHERE si.`content_id`=lc.`content_id`
-						AND si.`searchword` IN (" . $qPlaceHolders1 . ")
-						GROUP BY
-						si.`content_id`
-						)>0 $whereSql
+					$fromSql
 					ORDER BY 9 DESC, 5 DESC
 					";
-			$querycant = "SELECT
-					COUNT(*)
-					FROM `" . BIT_DB_PREFIX . "liberty_content` lc
-					LEFT OUTER JOIN `".BIT_DB_PREFIX."liberty_content_hits` lch ON (lc.`content_id` = lch.`content_id`)
-					$joinSql
-					WHERE (
-						SELECT SUM(i_count)
-						FROM `" . BIT_DB_PREFIX . "search_index` si
-						WHERE si.`content_id`=lc.`content_id`
-						AND si.`searchword` IN (" . $qPlaceHolders1 . ")
-						GROUP BY
-						si.`content_id`
-						)>0 $whereSql";
-			$result = $this->mDb->query( $query,  array_merge( $pParamHash['words'] ,$bindVars), $pParamHash['max_records'], $pParamHash['offset'] );
-			$pParamHash['cant'] = $this->mDb->getOne( $querycant, $bindVars );
-			while ($res = $result->fetchRow()) {
-				$res['href'] = BIT_ROOT_URL . "index.php?content_id=" . $res['content_id'];
-				$ret[] = $res;
-			}
-			return $ret;
+		$querycant = "SELECT COUNT(*) $fromSql";
+		$result = $this->mDb->query( $query, $bindVars, $pParamHash['max_records'], $pParamHash['offset'] );
+		$pParamHash['cant'] = $this->mDb->getOne( $querycant, $bindVars );
+		while ($res = $result->fetchRow()) {
+			$res['href'] = BIT_ROOT_URL . "index.php?content_id=" . $res['content_id'];
+			$ret[] = $res;
+		}
+		return $ret;
 	}
 
 	public function find_with_and($allowed, $selectSql, $joinSql, $whereSql, $bindVars, &$pParamHash) {
